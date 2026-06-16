@@ -9,7 +9,9 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Readable } from 'stream';
 
-puppeteer.use(StealthPlugin());
+const stealth = StealthPlugin();
+stealth.enabledEvasions.delete('chrome.app');
+puppeteer.use(stealth);
 
 // --- Cross-Platform Binary Locator ---
 function getBinaryPath(binaryName) {
