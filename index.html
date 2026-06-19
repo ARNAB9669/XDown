@@ -2017,15 +2017,6 @@
         </div>
       </div>
 
-      <div class="config-row">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4" />
-        </svg>
-        <span class="config-lbl">RELAY NODE</span>
-        <input class="config-input" id="server-url" placeholder="http://localhost:3000" />
-      </div>
-
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">SIGNAL ACQUISITION</div>
@@ -2150,7 +2141,8 @@
           <div class="quality-badge">
             <div>
               <div class="q-label">SELECTED QUALITY</div>
-              <select id="quality-display" class="q-val" style="background: var(--void); border: 1px solid var(--border); outline: none; cursor: pointer; width: 100%; padding: 2px;">
+              <select id="quality-display" class="q-val"
+                style="background: var(--void); border: 1px solid var(--border); outline: none; cursor: pointer; width: 100%; padding: 2px;">
                 <option value="best">▲ BEST AVAILABLE</option>
               </select>
             </div>
@@ -2171,6 +2163,15 @@
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
               <span>STREAM</span>
+            </button>
+            <button type="button" class="stream-btn" id="audio-btn" data-disabled="true" onclick="downloadAudio()"
+              style="background: linear-gradient(135deg, #1a472a, #2d6a4f); border-color: #52b788;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+              <span>🎵 AUDIO</span>
             </button>
             <button class="reset-btn" onclick="reset()">[ ABORT / NEW ]</button>
           </div>
@@ -2197,7 +2198,7 @@
       <div class="strip-item"><span class="dot green" style="width:5px;height:5px;"></span>FFMPEG PIPE READY</div>
       <div class="strip-item"><span class="dot green" style="width:5px;height:5px;"></span>PUPPETEER STANDBY</div>
       <div class="strip-item"><span class="dot amber" style="width:5px;height:5px;"></span>CHROMIUM LOADED</div>
-      <span style="margin-left:auto;">ORBITAL INTERCEPT v4.2 · ALL SYSTEMS GO</span>
+      <span style="margin-left:auto;">ORBITAL INTERCEPT v5.0 · HLS READY</span>
     </div>
 
   </div>
@@ -2285,7 +2286,7 @@
       <div class="stream-container">
         <div class="video-player" id="video-player-container">
           <video id="stream-video" preload="auto" playsinline></video>
-          
+
           <div class="buffering-indicator" id="buffering-indicator" style="display:none;">
             <div class="spinner"></div>
             <span>Buffering...</span>
@@ -2311,10 +2312,13 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.ui.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/controls.min.css">
   <script>
     /* ── STATE ──────────────────────────────── */
     let videoInfo = null;
     let hlsInstance = null;
+    let shakaPlayer = null;
     let terminalInterval = null;
     let termSeconds = 0;
     let termClockInterval = null;
@@ -2323,14 +2327,123 @@
     let radarBlipTimer = null;
     let playerState = null;
 
-    const serverInput = document.getElementById('server-url');
+    // ── SessionStorage helpers for crash/refresh resilience ────────────────
+    function saveSession(info, url) {
+      try {
+        sessionStorage.setItem('xdown_videoInfo', JSON.stringify(info));
+        sessionStorage.setItem('xdown_url', url);
+        sessionStorage.setItem('xdown_ts', Date.now());
+      } catch (e) { /* quota exceeded – ignore */ }
+    }
+    function clearSession() {
+      sessionStorage.removeItem('xdown_videoInfo');
+      sessionStorage.removeItem('xdown_url');
+      sessionStorage.removeItem('xdown_ts');
+      sessionStorage.removeItem('xdown_downloading');
+    }
+    function restoreSession() {
+      try {
+        const raw = sessionStorage.getItem('xdown_videoInfo');
+        const savedUrl = sessionStorage.getItem('xdown_url');
+        const ts = Number(sessionStorage.getItem('xdown_ts') || 0);
+        const wasDownloading = sessionStorage.getItem('xdown_downloading') === '1';
+        if (!raw || !savedUrl) return;
+        // Ignore stale sessions older than 10 minutes
+        if (Date.now() - ts > 10 * 60 * 1000) { clearSession(); return; }
+        const info = JSON.parse(raw);
+        videoInfo = info;
+        urlInput.value = savedUrl;
+        // Re-populate result panel (minimal restore)
+        document.getElementById('analysis-status').textContent = '◆ SIGNAL LOCKED (RESTORED)';
+        const tw = document.getElementById('thumb-wrap');
+        tw.innerHTML = info.thumbnail
+          ? `<img src="${san(info.thumbnail)}" alt="thumb" loading="lazy">`
+          : `<div class="thumb-placeholder">NO SIGNAL</div>`;
+        document.getElementById('video-title').textContent = info.title || 'Unknown';
+        document.getElementById('video-source').textContent = (info.extractor || '—').toUpperCase();
+        document.getElementById('video-author').textContent = info.uploader || '—';
+        document.getElementById('video-dur').textContent = fmt(info.duration);
+        const qEl = document.getElementById('quality-display');
+        qEl.innerHTML = '';
+        if (info.formats && info.formats.length > 0) {
+          const bestOpt = document.createElement('option');
+          bestOpt.value = 'best';
+          bestOpt.textContent = `▲ BEST OF ${info.formats.length} FORMATS`;
+          qEl.appendChild(bestOpt);
+          info.formats.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.format_id;
+            const sizeStr = f.filesize ? ` (${(f.filesize / 1024 / 1024).toFixed(1)}MB)` : '';
+            const codecStr = f.vcodec !== 'none' && f.acodec !== 'none' ? ' 🔊' : (f.acodec === 'none' ? ' 🔇' : '');
+            const fpsStr = (f.fps && f.fps > 0) ? ` ${f.fps}fps` : '';
+            opt.textContent = `▶ ${f.height}p${fpsStr}${codecStr}${sizeStr}`;
+            qEl.appendChild(opt);
+          });
+        }
+        document.getElementById('result-panel').className = 'active';
+        document.getElementById('dl-btn').removeAttribute('data-disabled');
+        document.getElementById('stream-btn').removeAttribute('data-disabled');
+        // Show a resume banner if a download was in progress \u2014 don't auto-call
+        // showSaveFilePicker() since it requires a real user gesture or it'll loop.
+        if (wasDownloading) {
+          sessionStorage.removeItem('xdown_downloading');
+          console.log('\ud83d\udd04 Download was interrupted by page refresh \u2014 showing resume banner');
+          // Inject a resume banner into the page
+          const banner = document.createElement('div');
+          banner.id = 'resume-banner';
+          banner.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: linear-gradient(90deg, #ff6b35, #f7c59f);
+            color: #1a1a2e; font-family: 'Courier New', monospace;
+            font-weight: bold; font-size: 14px;
+            padding: 12px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(255,107,53,0.5);
+            animation: slideDown 0.3s ease;
+          `;
+          banner.innerHTML = `
+            <span>\u26a0\ufe0f Download interrupted by browser refresh. Click to resume.</span>
+            <div style="display:flex;gap:10px">
+              <button onclick="startWarpDownload({preventDefault:()=>{}})" style="
+                background:#1a1a2e; color:#ff6b35; border:2px solid #ff6b35;
+                padding:6px 16px; font-family:inherit; font-weight:bold;
+                cursor:pointer; border-radius:4px; font-size:13px;
+              ">\u25b6 RESUME</button>
+              <button onclick="document.getElementById('resume-banner').remove();clearSession();" style="
+                background:transparent; color:#1a1a2e; border:2px solid #1a1a2e;
+                padding:6px 12px; font-family:inherit; cursor:pointer;
+                border-radius:4px; font-size:13px;
+              ">\u2715</button>
+            </div>
+          `;
+          document.body.prepend(banner);
+        }
+      } catch (e) { clearSession(); }
+    }
+
     const urlInput = document.getElementById('url-input');
 
-    serverInput.value = localStorage.getItem('xdown_server') || 'http://localhost:3000';
-    serverInput.addEventListener('input', () => localStorage.setItem('xdown_server', serverInput.value.trim()));
+    // Boot: fetch server config (single source of truth for cookie domains)
+    let serverConfig = { cookieDomains: [], adDomains: [] };
+    fetch('/config').then(r => r.json()).then(cfg => {
+      serverConfig = cfg;
+      console.log('📋 Server config loaded — v' + cfg.version);
+    }).catch(() => console.warn('⚠️ Could not load server config'));
+
+    // Clipboard paste detection — auto-fetch on paste
+    document.addEventListener('paste', e => {
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+        if (document.activeElement !== urlInput) {
+          urlInput.value = text;
+          fetchInfo();
+        }
+      }
+    });
+
     urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchInfo(); });
 
-    function getServer() { return (serverInput.value || 'http://localhost:3000').replace(/\/$/, ''); }
+    function getServer() { return ''; }
     function san(s) { return (s || '').replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c])); }
     function fmt(s) {
       if (!s) return '—';
@@ -2338,17 +2451,18 @@
       return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
     }
     function buildDlUrl(useStream = false) {
-      const url = urlInput.value.trim();
+      const pageUrl = urlInput.value.trim();
+      const targetUrl = (videoInfo && videoInfo.url) ? videoInfo.url : pageUrl;
       const qEl = document.getElementById('quality-display');
       const selectedFormat = qEl ? qEl.value : 'best';
       const isCustomQuality = selectedFormat !== 'best';
-      
+
       const endpoint = isCustomQuality ? '/download-quality' : '/download';
-      
-      let u = `${getServer()}${endpoint}?url=${encodeURIComponent(url)}`;
+
+      let u = `${getServer()}${endpoint}?url=${encodeURIComponent(targetUrl)}&originalUrl=${encodeURIComponent(pageUrl)}`;
       if (useStream) u += `&inline=true`;
       if (isCustomQuality) u += `&format_id=${encodeURIComponent(selectedFormat)}`;
-      
+
       if (videoInfo?.stream) u += `&stream=${encodeURIComponent(videoInfo.stream)}`;
       if (videoInfo?.streamType) u += `&streamType=${encodeURIComponent(videoInfo.streamType)}`;
       if (videoInfo?.title) u += `&title=${encodeURIComponent(videoInfo.title)}`;
@@ -2362,6 +2476,10 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    // 🔄 Restore previous session if page was refreshed mid-download
+    restoreSession();
+
 
     /* ── BOOT ──────────────────────────────── */
     const bootLines = [
@@ -2532,6 +2650,7 @@
           } else {
             document.getElementById('analysis-status').textContent = '◆ SIGNAL LOCKED';
             videoInfo = data.info;
+            saveSession(data.info, url);
 
             const tw = document.getElementById('thumb-wrap');
             tw.innerHTML = data.info.thumbnail
@@ -2545,19 +2664,23 @@
 
             const qEl = document.getElementById('quality-display');
             qEl.innerHTML = '';
-            
+
             if (data.info.formats && data.info.formats.length > 0) {
               const bestOpt = document.createElement('option');
               bestOpt.value = 'best';
               bestOpt.textContent = `▲ BEST OF ${data.info.formats.length} FORMATS`;
               qEl.appendChild(bestOpt);
-              
+
               data.info.formats.forEach(f => {
                 const opt = document.createElement('option');
                 opt.value = f.format_id;
-                const sizeStr = f.filesize ? ` (${(f.filesize/1024/1024).toFixed(1)}MB)` : '';
-                const codecStr = f.vcodec !== 'none' && f.acodec !== 'none' ? ' 🔊' : (f.acodec === 'none' ? ' 🔇' : '');
-                opt.textContent = `▶ ${f.height}p ${f.fps}fps${codecStr}${sizeStr}`;
+                // Show file size estimate (actual if available, else estimate from bitrate)
+                const sizeBytes = f.filesize || (f.tbr && data.info.duration ? (f.tbr * 1000 / 8) * data.info.duration : 0);
+                const sizeStr = sizeBytes > 0 ? ` · ~${(sizeBytes / 1024 / 1024).toFixed(0)}MB` : '';
+                const hasAudio = f.acodec !== 'none' && f.acodec !== undefined;
+                const audioStr = hasAudio ? ' 🔊' : ' 🔇';
+                const fpsStr = (f.fps && f.fps > 0) ? ` ${f.fps}fps` : '';
+                opt.textContent = `▶ ${f.height}p${fpsStr}${audioStr}${sizeStr}`;
                 qEl.appendChild(opt);
               });
             } else {
@@ -2567,22 +2690,15 @@
               qEl.appendChild(bestOpt);
             }
 
-            // 🔮 Background Pre-Buffering Magic
+            // Reset video player, no pre-buffering
             const streamVideo = document.getElementById('stream-video');
             streamVideo.pause();
             streamVideo.removeAttribute('src');
             streamVideo.load();
-            
-            // Wait a moment for DOM updates, then secretly start buffering the default quality
-            setTimeout(() => {
-              const streamUrl = buildDlUrl(true);
-              console.log('🔮 Pre-buffering stream in background:', streamUrl);
-              streamVideo.preload = 'auto';
-              streamVideo.src = streamUrl;
-            }, 100);
 
             document.getElementById('dl-btn').removeAttribute('data-disabled');
             document.getElementById('stream-btn').removeAttribute('data-disabled');
+            document.getElementById('audio-btn').removeAttribute('data-disabled');
 
             setTimeout(() => {
               document.getElementById('result-panel').className = 'panel visible';
@@ -2792,15 +2908,19 @@
       function updateVolume(newVolume) {
         playerState.volume = Math.max(0, Math.min(100, newVolume));
         video.volume = playerState.volume / 100;
+        const sa = document.getElementById('stream-audio');
+        if (sa) sa.volume = video.volume;
+
         volumeSlider.value = playerState.volume;
         volumeValue.textContent = Math.round(playerState.volume) + '%';
-        
+
         // Update slider gradient
         volumeSlider.style.setProperty('--volume-percent', playerState.volume + '%');
 
         playerState.isMuted = playerState.volume === 0;
         video.muted = playerState.isMuted;
-        
+        if (sa) sa.muted = playerState.isMuted;
+
         if (playerState.isMuted) {
           volumeBtn.classList.add('muted');
         } else {
@@ -2854,7 +2974,7 @@
         playerState.lastMouseMove = Date.now();
         playerControls.classList.remove('hidden');
         playerContainer.style.cursor = 'default';
-        
+
         clearTimeout(playerState.controlsTimeout);
 
         if (playerState.playing) {
@@ -2955,7 +3075,7 @@
 
       progressContainer.addEventListener('mousemove', (e) => {
         if (!video.duration) return;
-        
+
         const rect = progressContainer.getBoundingClientRect();
         const percent = ((e.clientX - rect.left) / rect.width) * 100;
         const time = (percent / 100) * video.duration;
@@ -2977,6 +3097,8 @@
 
       const streamQualitySelect = document.getElementById('stream-quality-select');
       streamQualitySelect.addEventListener('change', (e) => {
+        if (hlsInstance || shakaPlayer) return; // Handled natively by HLS/DASH
+
         const mainQualitySelect = document.getElementById('quality-display');
         if (mainQualitySelect) {
           mainQualitySelect.value = e.target.value;
@@ -2985,19 +3107,8 @@
         const currentTime = video.currentTime;
         const wasPlaying = !video.paused;
 
-        document.getElementById('stream-video-status').textContent = 'SWITCHING QUALITY...';
-
-        setTimeout(() => {
-          const streamUrl = buildDlUrl(true);
-          video.src = streamUrl;
-          
-          video.addEventListener('loadedmetadata', () => {
-            video.currentTime = currentTime;
-            if (wasPlaying) {
-              video.play().catch(err => console.error(err));
-            }
-          }, { once: true });
-        }, 50);
+        // Start the stream with the new quality and pass the preserved time
+        startStream(null, currentTime, wasPlaying);
       });
 
       // Fullscreen
@@ -3140,37 +3251,73 @@
       // Initialize
       showControls();
       updateVolume(100);
-      
+
       console.log('✅ Enhanced video player initialized with full controls');
     }
 
-    async function startStream(e) {
+    function buildDlUrl(useStream = false, trackType = null) {
+      const pageUrl = urlInput.value.trim();
+      const targetUrl = (videoInfo && videoInfo.url) ? videoInfo.url : pageUrl;
+      const qEl = document.getElementById('quality-display');
+      const selectedFormat = qEl ? qEl.value : 'best';
+      const isCustomQuality = selectedFormat !== 'best';
+
+      const endpoint = isCustomQuality ? '/download-quality' : '/download';
+
+      let u = `${getServer()}${endpoint}?url=${encodeURIComponent(targetUrl)}&originalUrl=${encodeURIComponent(pageUrl)}`;
+      if (useStream) u += `&inline=true`;
+      if (isCustomQuality) u += `&format_id=${encodeURIComponent(selectedFormat)}`;
+      if (trackType) u += `&track=${encodeURIComponent(trackType)}`;
+
+      if (videoInfo?.stream) u += `&stream=${encodeURIComponent(videoInfo.stream)}`;
+      if (videoInfo?.streamType) u += `&streamType=${encodeURIComponent(videoInfo.streamType)}`;
+      if (videoInfo?.title) u += `&title=${encodeURIComponent(videoInfo.title)}`;
+      return u;
+    }
+
+
+    function cleanupStream() {
+      const streamVideo = document.getElementById('stream-video');
+      if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+      if (shakaPlayer) { shakaPlayer.destroy(); shakaPlayer = null; }
+      if (window._hlsSessionId) {
+        fetch(`/hls/${window._hlsSessionId}/stop`, { method: 'DELETE' }).catch(() => { });
+        window._hlsSessionId = null;
+      }
+
+      const streamAudio = document.getElementById('stream-audio');
+      if (streamAudio) {
+        streamAudio.pause();
+        streamAudio.removeAttribute('src');
+        streamAudio.load();
+      }
+
+      streamVideo.onplay = null;
+      streamVideo.onpause = null;
+      streamVideo.onseeked = null;
+      streamVideo.ontimeupdate = null;
+      streamVideo.onwaiting = null;
+      streamVideo.onplaying = null;
+
+      streamVideo.pause();
+      streamVideo.removeAttribute('src');
+      streamVideo.load();
+    }
+
+    async function startStream(e, preservedTime = 0, wasPlaying = false) {
       e?.preventDefault();
       if (!videoInfo) return;
 
       const streamWindow = document.getElementById('stream-window');
       const streamVideo = document.getElementById('stream-video');
+      const statusEl = document.getElementById('stream-video-status');
 
-      // Clean up previous instance
-      if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsInstance = null;
-      }
-
-      const streamUrl = buildDlUrl(true);
-      const isPreBuffered = streamVideo.src === streamUrl || streamVideo.src === streamUrl + '/';
-
-      if (!isPreBuffered) {
-        streamVideo.pause();
-        streamVideo.removeAttribute('src');
-        streamVideo.load();
-      }
+      cleanupStream();
 
       streamWindow.classList.add('active');
-
       document.getElementById('stream-video-title').textContent = videoInfo.title || 'Stream';
       document.getElementById('stream-video-source').textContent = (videoInfo.extractor || 'custom').toUpperCase();
-      document.getElementById('stream-video-status').textContent = 'PREPARING...';
+      statusEl.textContent = 'HD LOADING...';
 
       const qualitySelect = document.getElementById('stream-quality-select');
       const mainQualitySelect = document.getElementById('quality-display');
@@ -3179,44 +3326,248 @@
         qualitySelect.value = mainQualitySelect.value;
       }
 
+      const url = urlInput.value.trim();
+      const selectedFormat = mainQualitySelect?.value || 'best';
+
+      let useHls = false;
+      let isDashSplit = false;
+
+      if (videoInfo.source === 'puppeteer') {
+        useHls = videoInfo.streamType === 'm3u8';
+      } else if (selectedFormat !== 'best' && videoInfo.formats && videoInfo.formats.length > 0) {
+        const format = videoInfo.formats.find(f => String(f.format_id) === String(selectedFormat));
+        const proto = (format && format.protocol) ? format.protocol.toLowerCase() : '';
+        const fId = String(selectedFormat).toLowerCase();
+
+        if (proto.includes('m3u8') || fId.includes('hls') || fId.includes('m3u8')) {
+          useHls = true;
+        }
+      } else {
+        if (videoInfo.streamType === 'm3u8' && videoInfo.extractor !== 'youtube') {
+          useHls = true;
+        }
+      }
+
+      console.log('DEBUG: videoInfo:', videoInfo, 'useHls:', useHls);
+
       try {
-        console.log('📺 Stream URL:', streamUrl);
-        
-        if (!isPreBuffered) {
+        if (!useHls) {
+          // Direct native stream proxy -> preserves original quality and byte-range seeking
+          const streamUrl = buildDlUrl(true);
+          console.log('📺 Direct Native Stream URL:', streamUrl);
           streamVideo.src = streamUrl;
-        } else {
-          console.log('⚡ Using pre-buffered background stream!');
-          if (streamVideo.readyState >= 1) {
-            document.getElementById('stream-video-status').textContent = 'STREAMING';
-            streamVideo.play().catch(e => console.error(e));
+
+          streamVideo.addEventListener('loadedmetadata', () => {
+            console.log('✅ Stream metadata loaded, duration:', streamVideo.duration);
+            statusEl.textContent = 'STREAMING (DIRECT)';
+            if (preservedTime > 0) streamVideo.currentTime = preservedTime;
+          }, { once: true });
+
+          streamVideo.addEventListener('canplay', () => {
+            if (wasPlaying) {
+              streamVideo.play().catch(err => {
+                if (err.name !== 'AbortError') statusEl.textContent = 'CLICK TO PLAY';
+              });
+            } else {
+              statusEl.textContent = 'CLICK TO PLAY';
+            }
+          }, { once: true });
+
+          streamVideo.addEventListener('error', () => {
+            statusEl.textContent = 'ERROR: ' + (streamVideo.error?.message || 'Unknown stream error');
+          }, { once: true });
+
+          return;
+        }
+
+        let m3u8Url = videoInfo.stream || videoInfo.url;
+
+        if (selectedFormat !== 'best' && videoInfo.formats) {
+          const format = videoInfo.formats.find(f => String(f.format_id) === String(selectedFormat));
+          if (format && format.url) {
+            m3u8Url = format.url;
           }
         }
-        
-        streamVideo.addEventListener('loadedmetadata', () => {
-          console.log('✅ Stream metadata loaded, duration:', streamVideo.duration);
-          console.log('✅ Video dimensions:', streamVideo.videoWidth, 'x', streamVideo.videoHeight);
-          document.getElementById('stream-video-status').textContent = 'STREAMING';
-        }, { once: true });
 
-        streamVideo.addEventListener('canplay', () => {
-          console.log('✅ Stream ready to play');
-          streamVideo.play().catch(err => {
-            if (err.name !== 'AbortError') {
-              console.error('Play failed:', err);
-              document.getElementById('stream-video-status').textContent = 'ERROR: ' + err.message;
+        if (!m3u8Url) throw new Error('Could not determine HLS manifest URL');
+
+        const playlistUrl = `/m3u8-proxy?url=${encodeURIComponent(m3u8Url)}&originalUrl=${encodeURIComponent(urlInput.value.trim())}`;
+        console.log('▶️ Loading Native HLS playlist proxy:', playlistUrl);
+
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 90,
+            maxBufferLength: 60,
+            startLevel: -1,
+          });
+
+          hlsInstance.loadSource(playlistUrl);
+          hlsInstance.attachMedia(streamVideo);
+
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+            console.log('✅ HLS manifest parsed — seeking enabled!');
+            statusEl.textContent = 'STREAMING (HLS)';
+
+            // Auto-select highest quality if user selected "BEST"
+            const mainQualitySelect = document.getElementById('quality-display');
+            if (mainQualitySelect && mainQualitySelect.value === 'best' && data.levels.length > 0) {
+              const maxLevel = data.levels.length - 1;
+              hlsInstance.currentLevel = maxLevel;
+              const qEl = document.getElementById('stream-quality-select');
+              if (qEl) qEl.value = maxLevel;
+              statusEl.textContent = `STREAMING (${data.levels[maxLevel].height}p)`;
+            }
+
+            streamVideo.play().catch(err => {
+              if (err.name !== 'AbortError') {
+                statusEl.textContent = 'CLICK TO PLAY';
+              }
+            });
+          });
+
+          hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              console.error('❌ HLS fatal error:', data.type, data.details);
+              statusEl.textContent = 'HLS ERROR: ' + data.details;
             }
           });
-        }, { once: true });
 
-        streamVideo.addEventListener('error', (evt) => {
-          const err = streamVideo.error;
-          console.error('❌ Video error:', err?.code, err?.message);
-          document.getElementById('stream-video-status').textContent = 'ERROR: ' + (err?.message || 'Unknown');
-        }, { once: true });
+        } else if (streamVideo.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          streamVideo.src = playlistUrl;
+          streamVideo.play().catch(() => { });
+          statusEl.textContent = 'STREAMING (Native HLS)';
+        } else {
+          throw new Error('HLS not supported in this browser');
+        }
 
       } catch (err) {
-        console.error('Stream error:', err);
-        document.getElementById('stream-video-status').textContent = 'ERROR: ' + err.message;
+        console.error('❌ Stream error:', err);
+        statusEl.textContent = 'ERROR: ' + err.message;
+      }
+    }
+
+
+    function isCookieDependent(urlStr) {
+      try {
+        const h = new URL(urlStr).hostname.toLowerCase().replace('www.', '');
+        // Use server config if loaded, else fall back to basic list
+        const domains = serverConfig.cookieDomains.length > 0
+          ? serverConfig.cookieDomains
+          : ['pornhub', 'xvideos', 'spankbang', 'xhamster', 'nuvid', 'xnxx', 'redtube', 'tube8'];
+        return domains.some(d => h.includes(d.replace('www.', '')));
+      } catch (e) { return false; }
+    }
+
+    function startHlsStream(m3u8Url, isCookieProtected) {
+      const streamVideo = document.getElementById('stream-video');
+
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          abrEwmaDefaultEstimate: 5000000,
+          startLevel: -1,
+        });
+
+        const finalUrl = isCookieProtected
+          ? `${getServer()}/hls-proxy?url=${encodeURIComponent(m3u8Url)}`
+          : m3u8Url;
+
+        hlsInstance.loadSource(finalUrl);
+        hlsInstance.attachMedia(streamVideo);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+          console.log('HLS manifest parsed, levels:', data.levels.length);
+          document.getElementById('stream-video-status').textContent = 'STREAMING';
+
+          const qEl = document.getElementById('stream-quality-select');
+          if (qEl) {
+            qEl.innerHTML = '<option value="-1">▲ AUTO QUALITY (ABR)</option>';
+            data.levels.forEach((level, idx) => {
+              const opt = document.createElement('option');
+              opt.value = idx;
+              opt.textContent = `▶ ${level.height}p ${level.bitrate ? Math.round(level.bitrate / 1000) + 'k' : ''}`;
+              qEl.appendChild(opt);
+            });
+            qEl.onchange = (e) => {
+              hlsInstance.currentLevel = parseInt(e.target.value);
+            };
+          }
+
+          streamVideo.play().catch(e => console.error(e));
+        });
+
+        hlsInstance.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+          console.log('HLS quality switched to level:', data.level);
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hlsInstance.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hlsInstance.recoverMediaError();
+            } else {
+              document.getElementById('stream-video-status').textContent = 'FATAL HLS ERROR';
+            }
+          }
+        });
+      } else if (streamVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        streamVideo.src = m3u8Url;
+        streamVideo.play().catch(e => console.error(e));
+      }
+    }
+
+    async function startDashStream(mpdUrl) {
+      const streamVideo = document.getElementById('stream-video');
+
+      shaka.polyfill.installAll();
+      if (shaka.Player.isBrowserSupported()) {
+        shakaPlayer = new shaka.Player(streamVideo);
+
+        shakaPlayer.addEventListener('error', (event) => {
+          console.error('Shaka Error:', event.detail);
+          document.getElementById('stream-video-status').textContent = 'DASH ERROR';
+        });
+
+        try {
+          await shakaPlayer.load(mpdUrl);
+          console.log('DASH manifest loaded!');
+          document.getElementById('stream-video-status').textContent = 'STREAMING';
+          streamVideo.play().catch(e => console.error(e));
+
+          // Populate qualities if available
+          const tracks = shakaPlayer.getVariantTracks();
+          const qEl = document.getElementById('stream-quality-select');
+          if (qEl && tracks.length > 0) {
+            qEl.innerHTML = '<option value="-1">▲ AUTO QUALITY (ABR)</option>';
+            tracks.forEach((t) => {
+              const opt = document.createElement('option');
+              opt.value = t.id;
+              opt.textContent = `▶ ${t.height}p ${Math.round(t.bandwidth / 1000)}k`;
+              qEl.appendChild(opt);
+            });
+            qEl.onchange = (e) => {
+              const trackId = parseInt(e.target.value);
+              if (trackId === -1) {
+                shakaPlayer.configure({ abr: { enabled: true } });
+              } else {
+                shakaPlayer.configure({ abr: { enabled: false } });
+                const track = shakaPlayer.getVariantTracks().find(t => t.id === trackId);
+                if (track) shakaPlayer.selectVariantTrack(track, true);
+              }
+            };
+          }
+        } catch (e) {
+          console.error('Error loading DASH:', e);
+          document.getElementById('stream-video-status').textContent = 'DASH LOAD ERROR';
+        }
+      } else {
+        document.getElementById('stream-video-status').textContent = 'BROWSER DASH NOT SUPPORTED';
       }
     }
 
@@ -3224,9 +3575,13 @@
       const streamWindow = document.getElementById('stream-window');
       const streamVideo = document.getElementById('stream-video');
 
-      if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsInstance = null;
+      if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+      if (shakaPlayer) { shakaPlayer.destroy(); shakaPlayer = null; }
+
+      // Tell server to delete HLS temp files
+      if (window._hlsSessionId) {
+        fetch(`/hls/${window._hlsSessionId}/stop`, { method: 'DELETE' }).catch(() => { });
+        window._hlsSessionId = null;
       }
 
       streamVideo.pause();
@@ -3340,6 +3695,11 @@
     async function startWarpDownload(e) {
       e.preventDefault();
       if (!videoInfo) return;
+      // Hide the resume banner if visible
+      const resumeBanner = document.getElementById('resume-banner');
+      if (resumeBanner) resumeBanner.remove();
+      // Mark that a download is actively running (survives refresh)
+      sessionStorage.setItem('xdown_downloading', '1');
 
       // 🛑 Clear any active background pre-buffer to avoid downloading twice!
       const streamVideo = document.getElementById('stream-video');
@@ -3356,6 +3716,13 @@
       hud.classList.add('active');
       core.classList.remove('success');
       document.getElementById('warp-close').classList.remove('visible');
+
+      const unloadGuard = (e) => {
+        e.preventDefault();
+        e.returnValue = 'Download in progress. Leave?';
+        return e.returnValue;
+      };
+      window.addEventListener('beforeunload', unloadGuard);
 
       buildWarpLines();
       startTerminal();
@@ -3400,16 +3767,55 @@
         }
 
         if (fallbackMode) {
-          addTermLine('[WARN] Triggering native browser download...', 'hi');
-          const dlUrl = buildDlUrl(false);
-          const a = document.createElement('a');
-          a.href = dlUrl;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          
-          addTermLine('[BROWSER] Download manager triggered', 'ok');
+          // ⚠️ Don't use href navigation — it unloads the page and causes an infinite reload loop.
+          // Instead, fetch the stream ourselves and create a blob URL for download.
+          addTermLine('[WARN] FS API unavailable — streaming to blob then triggering save...', 'hi');
+          sessionStorage.removeItem('xdown_downloading'); // clear flag before anything async
+          try {
+            const dlUrl = buildDlUrl(false);
+            const blobRes = await fetch(dlUrl, { cache: 'no-store' });
+            if (!blobRes.ok) throw new Error('Blob fetch failed: ' + blobRes.status);
+
+            const contentLength = Number(blobRes.headers.get('Content-Length')) || 0;
+            if (contentLength > 500 * 1024 * 1024) {
+              throw new Error(`File too large (${(contentLength / 1024 / 1024).toFixed(0)}MB) for RAM buffering. Use Chrome/Edge desktop for large files.`);
+            }
+
+            const blobReader = blobRes.body.getReader();
+            const chunks = [];
+            let blobReceived = 0;
+            while (true) {
+              const { done, value } = await blobReader.read();
+              if (done) break;
+              chunks.push(value);
+              blobReceived += value.length;
+              const mb = (blobReceived / 1024 / 1024).toFixed(1);
+              requestAnimationFrame(() => {
+                document.getElementById('download-phase').textContent = `BUFFERING ${mb} MB...`;
+                document.getElementById('metric-size').textContent = mb + ' MB';
+              });
+            }
+            const blob = new Blob(chunks, { type: 'video/mp4' });
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = fileName;
+            a.target = '_blank';
+            document.body.appendChild(a);
+
+            const evt = new MouseEvent('click', {
+              bubbles: false,
+              cancelable: false,
+              view: window
+            });
+            a.dispatchEvent(evt);
+
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            addTermLine('[BROWSER] Blob download triggered successfully', 'ok');
+          } catch (blobErr) {
+            addTermLine(`[ERROR] Blob fallback failed: ${blobErr.message}`, 'warn');
+          }
           stopTerminal({ size: 'Unknown' });
           core.classList.add('success');
           setTimeout(() => { document.getElementById('warp-close').classList.add('visible'); }, 1200);
@@ -3430,82 +3836,75 @@
         addTermLine('[SERVER] Live byte stream opened', 'ok');
 
         const total = Number(response.headers.get('Content-Length')) || 0;
-        const reader = response.body.getReader();
-
         addTermLine('[NET] Backend socket locked · awaiting binary chunks', 'hi');
-
-        const stream = new ReadableStream({
-          async start(controller) {
-            let received = 0;
-            let frameCount = 0;
-            const startTime = Date.now();
-
-            document.getElementById('metric-state').textContent = 'STREAM';
-            document.getElementById('download-phase').textContent = total > 0
-              ? 'LIVE BYTE TRANSFER ACTIVE...'
-              : 'FRAGMENTED STREAM DETECTED...';
-
-            while (true) {
-              const { done, value } = await reader.read();
-
-              if (done) {
-                controller.close();
-                break;
-              }
-
-              controller.enqueue(value);
-              if (received === 0) {
-                addTermLine(`[STREAM] First binary chunk received · ${value.length} bytes`, 'ok');
-                document.getElementById('metric-state').textContent = 'LIVE';
-              }
-
-              received += value.length;
-              frameCount += Math.floor(value.length / 12000);
-
-              const elapsed = (Date.now() - startTime) / 1000;
-              const speed = elapsed > 0 ? (received / 1024 / 1024 / elapsed) : 0;
-              const mb = received / 1024 / 1024;
-
-              const progressPercent = total > 0
-                ? Math.min(100, (received / total) * 100)
-                : Math.min(95, Math.max(2, frameCount / 1.5));
-
-              requestAnimationFrame(() => {
-                document.getElementById('download-fill').style.width = `${progressPercent}%`;
-                document.getElementById('download-percent').textContent = `${Math.floor(progressPercent)}%`;
-                document.getElementById('metric-speed').textContent = `${speed.toFixed(1)} MB/s`;
-                document.getElementById('metric-size').textContent = `${mb.toFixed(1)} MB`;
-                document.getElementById('metric-frames').textContent = frameCount.toLocaleString();
-                document.getElementById('download-phase').textContent = total > 0
-                  ? `STREAMING ${(received / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB`
-                  : `LIVE FRAGMENT PIPE · ${frameCount} FRAGS`;
-              });
-
-              if (frameCount % 6 === 0) {
-                addTermLine(
-                  `[STREAM] ${mb.toFixed(1)}MB @ ${speed.toFixed(1)}MB/s | chunk=${value.length}`,
-                  speed > 5 ? 'ok' : 'sys'
-                );
-              }
-            }
-          }
-        });
 
         document.getElementById('metric-state').textContent = 'WRITE';
         document.getElementById('download-phase').textContent = 'STREAMING DIRECTLY TO DISK...';
 
         addTermLine('[PIPE] Live chunks flowing directly into browser disk writer', 'ok');
 
-        const reader2 = stream.getReader();
+        const reader = response.body.getReader();
+        let received = 0;
+        let frameCount = 0;
+        const startTime = Date.now();
 
-        while (true) {
-          const { done, value } = await reader2.read();
-          if (done) break;
-          await writable.write(value);
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            if (received === 0) {
+              addTermLine(`[STREAM] First binary chunk received · ${value.length} bytes`, 'ok');
+              document.getElementById('metric-state').textContent = 'LIVE';
+            }
+
+            received += value.length;
+            frameCount += Math.floor(value.length / 12000);
+
+            const elapsed = (Date.now() - startTime) / 1000;
+            const speed = elapsed > 0 ? (received / 1024 / 1024 / elapsed) : 0;
+            const mb = received / 1024 / 1024;
+
+            const progressPercent = total > 0
+              ? Math.min(100, (received / total) * 100)
+              : Math.min(95, Math.max(2, frameCount / 1.5));
+
+            requestAnimationFrame(() => {
+              document.getElementById('download-fill').style.width = `${progressPercent}%`;
+              document.getElementById('download-percent').textContent = `${Math.floor(progressPercent)}%`;
+              document.getElementById('metric-speed').textContent = `${speed.toFixed(1)} MB/s`;
+              document.getElementById('metric-size').textContent = `${mb.toFixed(1)} MB`;
+              document.getElementById('metric-frames').textContent = frameCount.toLocaleString();
+              document.getElementById('download-phase').textContent = total > 0
+                ? `STREAMING ${(received / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB`
+                : `LIVE FRAGMENT PIPE · ${frameCount} FRAGS`;
+            });
+
+            if (frameCount % 6 === 0) {
+              addTermLine(
+                `[STREAM] ${mb.toFixed(1)}MB @ ${speed.toFixed(1)}MB/s | chunk=${value.length}`,
+                speed > 5 ? 'ok' : 'sys'
+              );
+            }
+
+            await writable.write(value);
+          }
+
+          await writable.close();
+        } catch (err) {
+          if (writable) {
+            try { await writable.abort(); } catch { }
+          }
+          throw err;
         }
 
-        await writable.close();
+        if (total > 0 && received < total) {
+          throw new Error('STREAM_INTERRUPTED_OR_EXPIRED');
+        }
+
         addTermLine('[DISK] Stream finalized successfully', 'ok');
+        // Download succeeded — clear the pending-download flag
+        sessionStorage.removeItem('xdown_downloading');
 
         stopTerminal({
           size: document.getElementById('metric-size').textContent
@@ -3519,14 +3918,24 @@
 
       } catch (err) {
         console.error(err);
+        // Download failed — clear the pending-download flag so we don't loop
+        sessionStorage.removeItem('xdown_downloading');
 
         document.getElementById('metric-state').textContent = 'ERROR';
         document.getElementById('download-phase').textContent = 'TRANSFER FAILED';
 
         addTermLine(`[ERROR] ${err.message}`, 'warn');
-        addTermLine('[PIPE] Stream collapsed before completion', 'warn');
+
+        if (err.message === 'STREAM_INTERRUPTED_OR_EXPIRED') {
+          addTermLine(`[PIPE] Connection dropped mid-stream (Token expired or rate-limited)`, 'warn');
+          addTermLine(`[AUTO-FIX] Close this panel and click Download again to get a fresh link.`, 'hi');
+        } else {
+          addTermLine('[PIPE] Stream collapsed before completion', 'warn');
+        }
 
         document.getElementById('warp-close').classList.add('visible');
+      } finally {
+        window.removeEventListener('beforeunload', unloadGuard);
       }
     }
 
@@ -3540,6 +3949,7 @@
 
     function reset() {
       videoInfo = null;
+      clearSession();
       urlInput.value = '';
       document.getElementById('result-panel').className = '';
       document.getElementById('dl-btn').setAttribute('data-disabled', 'true');
