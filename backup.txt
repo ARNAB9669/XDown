@@ -1,0 +1,5620 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XDown — ORBITAL INTERCEPT SYSTEM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap"
+    rel="stylesheet" />
+
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --void: #020408;
+      --deep: #050c14;
+      --panel: #071220;
+      --surface: #0a1a2e;
+      --border: #0e2840;
+      --border-glow: #1a4060;
+      --cyan: #00d4ff;
+      --cyan-dim: rgba(0, 212, 255, 0.15);
+      --cyan-glow: rgba(0, 212, 255, 0.4);
+      --amber: #ff8c00;
+      --amber-dim: rgba(255, 140, 0, 0.15);
+      --green: #39ff14;
+      --green-dim: rgba(57, 255, 20, 0.12);
+      --red: #ff2244;
+      --purple: #8040ff;
+      --text: #c8dff0;
+      --text-dim: #4a6a88;
+      --orbitron: 'Orbitron', monospace;
+      --mono: 'Share Tech Mono', monospace;
+      --raj: 'Rajdhani', sans-serif;
+    }
+
+    html {
+      font-size: 16px;
+    }
+
+    body {
+      background: var(--void);
+      color: var(--text);
+      font-family: var(--raj);
+      min-height: 100vh;
+      overflow-x: hidden;
+      cursor: crosshair;
+    }
+
+    #bg-video {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -3;
+      opacity: 1.36;
+      filter: brightness(0.35) saturate(0.9) contrast(1.2) blur(1px);
+      pointer-events: none;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 0, 0, 0.08) 2px,
+          rgba(0, 0, 0, 0.08) 4px);
+      pointer-events: none;
+      z-index: 9998;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='104' viewBox='0 0 60 104'%3E%3Cpath d='M30 2 L58 17 L58 47 L30 62 L2 47 L2 17 Z' fill='none' stroke='rgba(0,212,255,0.04)' stroke-width='1'/%3E%3Cpath d='M30 52 L58 67 L58 97 L30 112 L2 97 L2 67 Z' fill='none' stroke='rgba(0,212,255,0.04)' stroke-width='1'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── BOOT SCREEN ──────────────────────────── */
+    #boot-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--void);
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+
+    #boot-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .boot-logo {
+      font-family: var(--orbitron);
+      font-size: clamp(2rem, 8vw, 5rem);
+      font-weight: 900;
+      color: var(--cyan);
+      text-shadow: 0 0 40px var(--cyan), 0 0 80px rgba(0, 212, 255, 0.3);
+      letter-spacing: 0.3em;
+      margin-bottom: 8px;
+      animation: logo-flicker 0.1s steps(1) 3;
+    }
+
+    .boot-sub {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+
+    .boot-bar-wrap {
+      width: min(500px, 80vw);
+      margin-bottom: 32px;
+    }
+
+    .boot-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      letter-spacing: 0.15em;
+    }
+
+    .boot-bar {
+      height: 3px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .boot-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--purple), var(--cyan));
+      width: 0%;
+      transition: width 0.15s ease;
+      box-shadow: 0 0 12px var(--cyan);
+    }
+
+    .boot-log {
+      width: min(500px, 80vw);
+      height: 140px;
+      overflow: hidden;
+      font-size: 0.68rem;
+      line-height: 1.9;
+      color: var(--text-dim);
+    }
+
+    .boot-log-line {
+      animation: fadeIn 0.1s ease;
+    }
+
+    .boot-log-line.ok {
+      color: var(--green);
+    }
+
+    .boot-log-line.warn {
+      color: var(--amber);
+    }
+
+    .boot-log-line.sys {
+      color: var(--cyan);
+    }
+
+    @keyframes logo-flicker {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: 0.4
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0
+      }
+
+      to {
+        opacity: 1
+      }
+    }
+
+    #app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-bar-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 24px;
+      background: rgba(7, 18, 32, 0.95);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    .status-bar-top .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: blink-dot 2s infinite;
+    }
+
+    .dot.green {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation-delay: 0s;
+    }
+
+    .dot.amber {
+      background: var(--amber);
+      box-shadow: 0 0 6px var(--amber);
+      animation-delay: 0.7s;
+    }
+
+    .dot.cyan {
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+      animation-delay: 1.4s;
+    }
+
+    @keyframes blink-dot {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: 0.3
+      }
+    }
+
+    .sbar-group {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .sbar-item {
+      display: flex;
+      align-items: center;
+    }
+
+    .wrapper {
+      flex: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+      width: 100%;
+    }
+
+    .ship-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      margin-bottom: 36px;
+      gap: 20px;
+    }
+
+    .header-gauges {
+      display: flex;
+      gap: 12px;
+    }
+
+    .gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .gauge-ring {
+      width: 48px;
+      height: 48px;
+      position: relative;
+    }
+
+    .gauge-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .gauge-track {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 3;
+    }
+
+    .gauge-fill {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s ease;
+    }
+
+    .gauge-label {
+      font-family: var(--mono);
+      font-size: 0.55rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    .gauge-val {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan);
+    }
+
+    .header-center {
+      text-align: center;
+    }
+
+    .brand {
+      font-family: var(--orbitron);
+      font-size: clamp(1.8rem, 5vw, 3.2rem);
+      font-weight: 900;
+      color: var(--cyan);
+      text-shadow: 0 0 30px var(--cyan-glow);
+      letter-spacing: 0.2em;
+      line-height: 1;
+      position: relative;
+    }
+
+    .brand::before,
+    .brand::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30px;
+      height: 1px;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      transform: translateY(-50%);
+    }
+
+    .brand::before {
+      right: calc(100% + 10px);
+    }
+
+    .brand::after {
+      left: calc(100% + 10px);
+    }
+
+    .brand-sub {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.4em;
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+
+    .header-gauges.right {
+      justify-content: flex-end;
+    }
+
+    .panel {
+      background: linear-gradient(170deg, rgba(10, 26, 46, 0.95), rgba(7, 18, 32, 0.98));
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      position: relative;
+      margin-bottom: 20px;
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.04) inset, 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .panel::before,
+    .panel::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: var(--cyan);
+      border-style: solid;
+    }
+
+    .panel::before {
+      top: -1px;
+      left: -1px;
+      border-width: 2px 0 0 2px;
+    }
+
+    .panel::after {
+      bottom: -1px;
+      right: -1px;
+      border-width: 0 2px 2px 0;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 212, 255, 0.03);
+    }
+
+    .panel-title {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--cyan);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      transform: rotate(45deg);
+    }
+
+    .panel-status {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--green);
+      letter-spacing: 0.15em;
+    }
+
+    .panel-body {
+      padding: 24px 20px;
+    }
+
+    .config-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: rgba(255, 140, 0, 0.04);
+      border: 1px solid rgba(255, 140, 0, 0.2);
+      border-left: 3px solid var(--amber);
+      margin-bottom: 20px;
+    }
+
+    .config-lbl {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--amber);
+      letter-spacing: 0.15em;
+      white-space: nowrap;
+    }
+
+    .config-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .config-input::placeholder {
+      color: var(--text-dim);
+    }
+
+    .input-rig {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .url-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .url-wrap::before {
+      content: 'TARGET://';
+      position: absolute;
+      left: 14px;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--cyan);
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    .url-field {
+      width: 100%;
+      padding: 16px 16px 16px 90px;
+      background: rgba(0, 212, 255, 0.03);
+      border: 1px solid var(--border-glow);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      outline: none;
+      border-radius: 1px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      min-height: 54px;
+    }
+
+    .url-field::placeholder {
+      color: var(--text-dim);
+      font-size: 0.72rem;
+    }
+
+    .url-field:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 1px var(--cyan), inset 0 0 20px var(--cyan-dim);
+    }
+
+    .launch-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 0 28px;
+      background: transparent;
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-family: var(--orbitron);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: crosshair;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+      min-height: 54px;
+    }
+
+    .launch-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--cyan);
+      transform: scaleY(0);
+      transform-origin: bottom;
+      transition: transform 0.2s ease;
+      z-index: 0;
+    }
+
+    .launch-btn:hover::before {
+      transform: scaleY(1);
+    }
+
+    .launch-btn:hover {
+      color: var(--void);
+      box-shadow: 0 0 30px var(--cyan-glow);
+    }
+
+    .launch-btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .launch-btn span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .launch-btn .btn-icon {
+      font-size: 1.1rem;
+    }
+
+    #analysis-panel {
+      display: none;
+    }
+
+    #analysis-panel.visible {
+      display: block;
+    }
+
+    .radar-rig {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .radar-container {
+      position: relative;
+      width: 200px;
+      height: 200px;
+    }
+
+    .radar-svg {
+      position: absolute;
+      inset: 0;
+    }
+
+    .radar-sweep {
+      transform-origin: 50% 50%;
+      animation: radar-rotate 2.5s linear infinite;
+    }
+
+    @keyframes radar-rotate {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .radar-blip {
+      animation: blip-fade 2.5s ease-out infinite;
+    }
+
+    @keyframes blip-fade {
+      0% {
+        opacity: 1;
+        r: 3;
+      }
+
+      60% {
+        opacity: 0.5;
+      }
+
+      100% {
+        opacity: 0;
+        r: 6;
+      }
+    }
+
+    .radar-crosshair {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--cyan);
+      text-align: center;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .decode-area {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 200px;
+      justify-content: center;
+    }
+
+    .decode-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 2px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+
+    .decode-row.active {
+      border-left-color: var(--cyan);
+    }
+
+    .decode-row.done {
+      border-left-color: var(--green);
+    }
+
+    .decode-row.error {
+      border-left-color: var(--red);
+      background: rgba(255, 34, 68, 0.05);
+    }
+
+    .decode-row.error .decode-value {
+      color: var(--red);
+      font-size: 0.65rem;
+    }
+
+    .decode-row.error .decode-tick {
+      background: transparent;
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .decode-label {
+      color: var(--text-dim);
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    .decode-value {
+      color: var(--cyan);
+      flex: 1;
+    }
+
+    .decode-row.done .decode-value {
+      color: var(--green);
+    }
+
+    .decode-tick {
+      width: 14px;
+      height: 14px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .decode-row.done .decode-tick {
+      background: var(--green);
+      border-color: var(--green);
+      color: #000;
+    }
+
+    .decode-row.active .decode-tick {
+      border-color: var(--cyan);
+      animation: spin-tick 0.8s linear infinite;
+    }
+
+    @keyframes spin-tick {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #result-panel {
+      display: none;
+    }
+
+    #result-panel.visible {
+      display: block;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 20px;
+    }
+
+    .thumb-frame {
+      position: relative;
+    }
+
+    .thumb-frame::before,
+    .thumb-frame::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: var(--cyan);
+      border-style: solid;
+      z-index: 2;
+    }
+
+    .thumb-frame::before {
+      top: -1px;
+      left: -1px;
+      border-width: 2px 0 0 2px;
+    }
+
+    .thumb-frame::after {
+      bottom: -1px;
+      right: -1px;
+      border-width: 0 2px 2px 0;
+    }
+
+    .thumb-frame img {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+      display: block;
+      filter: brightness(0.85) saturate(0.9);
+    }
+
+    .thumb-placeholder {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--text-dim);
+    }
+
+    .meta-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .meta-row {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+    }
+
+    .meta-key {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      padding: 8px 12px;
+      background: rgba(0, 212, 255, 0.03);
+      border-right: 1px solid var(--border);
+      width: 100px;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+
+    .meta-val {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text);
+      padding: 8px 12px;
+      flex: 1;
+      word-break: break-all;
+    }
+
+    .meta-row.title .meta-val {
+      font-family: var(--raj);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--cyan);
+    }
+
+    .quality-badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: linear-gradient(90deg, rgba(57, 255, 20, 0.08), transparent);
+      border: 1px solid rgba(57, 255, 20, 0.3);
+      border-left: 3px solid var(--green);
+      margin-top: 16px;
+    }
+
+    .quality-badge .q-label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--text-dim);
+      letter-spacing: 0.15em;
+    }
+
+    .quality-badge .q-val {
+      font-family: var(--orbitron);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--green);
+      text-shadow: 0 0 12px var(--green);
+    }
+
+    .quality-badge .q-auto {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      margin-left: auto;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .dl-btn,
+    .stream-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      background: transparent;
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-family: var(--orbitron);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-decoration: none;
+      text-transform: uppercase;
+      cursor: crosshair;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .stream-btn {
+      border-color: var(--purple);
+      color: var(--purple);
+    }
+
+    .dl-btn::before,
+    .stream-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--green);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.25s ease;
+      z-index: 0;
+    }
+
+    .stream-btn::before {
+      background: var(--purple);
+    }
+
+    .dl-btn:hover::before,
+    .stream-btn:hover::before {
+      transform: scaleX(1);
+    }
+
+    .dl-btn:hover {
+      color: var(--void);
+      box-shadow: 0 0 40px rgba(57, 255, 20, 0.5);
+    }
+
+    .stream-btn:hover {
+      color: var(--void);
+      box-shadow: 0 0 40px rgba(128, 64, 255, 0.5);
+    }
+
+    .dl-btn[data-disabled="true"],
+    .stream-btn[data-disabled="true"] {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .dl-btn>*,
+    .stream-btn>* {
+      position: relative;
+      z-index: 1;
+    }
+
+    .reset-btn {
+      padding: 14px 20px;
+      background: transparent;
+      border: 1px solid var(--border-glow);
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      cursor: crosshair;
+      letter-spacing: 0.1em;
+      transition: all 0.2s;
+    }
+
+    .reset-btn:hover {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    #warp-hud {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--void);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    #warp-hud.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .warp-tunnel {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .warp-line {
+      position: absolute;
+      width: 1px;
+      background: linear-gradient(transparent, var(--cyan), transparent);
+      transform-origin: center center;
+      animation: warp-stream 1.2s linear infinite;
+      opacity: 0;
+    }
+
+    @keyframes warp-stream {
+      0% {
+        transform: scaleY(0) translateY(-50vh);
+        opacity: 0;
+      }
+
+      10% {
+        opacity: 0.8;
+      }
+
+      90% {
+        opacity: 0.6;
+      }
+
+      100% {
+        transform: scaleY(3) translateY(50vh);
+        opacity: 0;
+      }
+    }
+
+    .warp-center {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .reactor {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .reactor-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+
+    .r1 {
+      inset: 0;
+      border-top-color: var(--cyan);
+      border-bottom-color: var(--purple);
+      animation: spin-r 2.5s linear infinite;
+      box-shadow: 0 0 30px var(--cyan-glow);
+    }
+
+    .r2 {
+      inset: 20px;
+      border-left-color: var(--green);
+      border-right-color: var(--cyan);
+      animation: spin-r 1.8s linear infinite reverse;
+    }
+
+    .r3 {
+      inset: 40px;
+      border-top-color: var(--purple);
+      border-bottom-color: var(--green);
+      animation: spin-r 1.2s linear infinite;
+      opacity: 0.8;
+    }
+
+    @keyframes spin-r {
+      from {
+        transform: rotate(0)
+      }
+
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .reactor-core {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--cyan) 0%, rgba(0, 212, 255, 0.3) 50%, transparent 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: core-pulse 1s ease-in-out infinite alternate;
+      box-shadow: 0 0 60px var(--cyan), 0 0 120px rgba(0, 212, 255, 0.3);
+    }
+
+    .reactor-core.success {
+      background: radial-gradient(circle, var(--green) 0%, rgba(57, 255, 20, 0.3) 50%, transparent 70%);
+      box-shadow: 0 0 60px var(--green), 0 0 120px rgba(57, 255, 20, 0.3);
+      animation: core-success 0.5s ease-out forwards;
+    }
+
+    @keyframes core-pulse {
+      from {
+        transform: scale(0.95);
+      }
+
+      to {
+        transform: scale(1.05);
+      }
+    }
+
+    @keyframes core-success {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.3);
+      }
+
+      100% {
+        transform: scale(1.1);
+      }
+    }
+
+    .reactor-core svg {
+      color: var(--void);
+      width: 32px;
+      height: 32px;
+    }
+
+    .warp-terminal {
+      width: min(720px, 94vw);
+      background: rgba(0, 0, 0, 0.82);
+      border: 1px solid var(--border-glow);
+      border-top: 2px solid var(--cyan);
+      box-shadow: 0 0 40px rgba(0, 212, 255, 0.08);
+      backdrop-filter: blur(6px);
+    }
+
+    .term-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 212, 255, 0.04);
+    }
+
+    .term-header span {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--cyan);
+      letter-spacing: 0.2em;
+    }
+
+    .term-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .term-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .term-dot.r {
+      background: var(--red);
+    }
+
+    .term-dot.a {
+      background: var(--amber);
+    }
+
+    .term-dot.g {
+      background: var(--green);
+    }
+
+    .term-body {
+      padding: 14px;
+      height: 220px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 2px;
+    }
+
+    .download-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      background: rgba(0, 212, 255, 0.03);
+    }
+
+    .metric-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(0, 212, 255, 0.12);
+      padding: 10px;
+      min-height: 68px;
+    }
+
+    .metric-label {
+      font-family: var(--mono);
+      font-size: 0.52rem;
+      color: var(--text-dim);
+      letter-spacing: 0.16em;
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-family: var(--orbitron);
+      font-size: 1rem;
+      color: var(--cyan);
+      text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }
+
+    .metric-sub {
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 0.55rem;
+      color: var(--green);
+    }
+
+    .download-bar-wrap {
+      padding: 0 14px 14px;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .download-bar {
+      position: relative;
+      height: 14px;
+      border: 1px solid rgba(0, 212, 255, 0.15);
+      background: rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+    }
+
+    .download-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      box-shadow: 0 0 18px rgba(0, 212, 255, 0.4);
+      transition: width 0.08s linear;
+      position: relative;
+    }
+
+    .download-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      animation: bar-shine 1s linear infinite;
+    }
+
+    .download-bar-text {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    @keyframes bar-shine {
+      from {
+        transform: translateX(-100%);
+      }
+
+      to {
+        transform: translateX(100%);
+      }
+    }
+
+    .term-line {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      line-height: 1.6;
+      animation: fadeIn 0.08s ease;
+    }
+
+    .term-line.sys {
+      color: var(--text-dim);
+    }
+
+    .term-line.ok {
+      color: var(--green);
+      font-weight: bold;
+    }
+
+    .term-line.hi {
+      color: var(--cyan);
+    }
+
+    .term-line.warn {
+      color: var(--amber);
+    }
+
+    .warp-close {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      background: transparent;
+      border: 1px solid var(--border-glow);
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      padding: 8px 14px;
+      cursor: crosshair;
+      letter-spacing: 0.1em;
+      display: none;
+      transition: all 0.2s;
+    }
+
+    .warp-close:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .warp-close.visible {
+      display: block;
+    }
+
+    /* ─── STREAM WINDOW ──────────────────── */
+    #stream-window {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--void);
+      display: none;
+      flex-direction: column;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    #stream-window.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .stream-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: rgba(7, 18, 32, 0.95);
+      border-bottom: 1px solid var(--border);
+      min-height: 60px;
+    }
+
+    .stream-title {
+      font-family: var(--orbitron);
+      font-size: 1.2rem;
+      color: var(--cyan);
+      letter-spacing: 0.15em;
+    }
+
+    .stream-status {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stream-status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      animation: blink-dot 2s infinite;
+    }
+
+    .stream-close {
+      background: transparent;
+      border: 1px solid var(--border-glow);
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      padding: 8px 14px;
+      cursor: crosshair;
+      letter-spacing: 0.1em;
+      transition: all 0.2s;
+    }
+
+    .stream-close:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .stream-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stream-container {
+      width: 100%;
+      max-width: 1400px;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .video-player {
+      flex: 1;
+      min-height: 0;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #stream-video {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      flex: 1;
+      display: block;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .stream-info {
+      background: linear-gradient(170deg, rgba(10, 26, 46, 0.95), rgba(7, 18, 32, 0.98));
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text);
+    }
+
+    .stream-info-row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .stream-info-label {
+      color: var(--cyan);
+      letter-spacing: 0.1em;
+      font-weight: 600;
+    }
+
+    /* ─── ENHANCED PLAYER CONTROLS ──────────────────────── */
+    .player-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .player-controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(2, 4, 8, 0.95) 0%, rgba(2, 4, 8, 0.85) 70%, transparent 100%);
+      padding: 60px 16px 12px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      opacity: 1;
+      transform: translateY(0);
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .player-controls.hidden {
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+
+    .progress-wrapper {
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+
+    .progress-container {
+      position: relative;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: visible;
+      transition: height 0.2s;
+    }
+
+    .progress-container:hover {
+      height: 8px;
+    }
+
+    .progress-buffered {
+      position: absolute;
+      height: 100%;
+      background: rgba(0, 212, 255, 0.25);
+      width: 0%;
+      border-radius: 2px;
+      z-index: 1;
+    }
+
+    .progress-fill {
+      position: absolute;
+      height: 100%;
+      background: linear-gradient(90deg, #00d4ff, #8040ff);
+      width: 0%;
+      border-radius: 2px;
+      z-index: 2;
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+      transition: width 0.1s ease-out;
+    }
+
+    .progress-handle {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #00d4ff;
+      border-radius: 50%;
+      top: 50%;
+      left: 0%;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.8);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+
+    .progress-container:hover .progress-handle {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+
+    .progress-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.95);
+      color: #00d4ff;
+      padding: 6px 10px;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      white-space: nowrap;
+      bottom: 20px;
+      left: 0%;
+      transform: translateX(-50%);
+      z-index: 4;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      border: 1px solid rgba(0, 212, 255, 0.3);
+    }
+
+    .progress-tooltip::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid rgba(0, 0, 0, 0.95);
+    }
+
+    .progress-container:hover .progress-tooltip {
+      opacity: 1;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .controls-left,
+    .controls-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-btn {
+      background: transparent;
+      border: none;
+      color: #c8dff0;
+      cursor: pointer;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      border-radius: 4px;
+      position: relative;
+    }
+
+    .control-btn:hover {
+      color: #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+      transform: scale(1.1);
+    }
+
+    .control-btn:active {
+      transform: scale(0.95);
+    }
+
+    .control-btn.muted {
+      color: #ff2244;
+    }
+
+    .control-btn.active {
+      color: #00d4ff;
+      background: rgba(0, 212, 255, 0.15);
+    }
+
+    .icon-play,
+    .icon-pause,
+    .icon-fullscreen,
+    .icon-fullscreen-exit {
+      fill: currentColor;
+    }
+
+    .volume-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .volume-slider-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      max-width: 0;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .volume-group:hover .volume-slider-container {
+      opacity: 1;
+      max-width: 140px;
+    }
+
+    .volume-slider {
+      width: 100px;
+      height: 5px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(90deg, #00d4ff 0%, #00d4ff var(--volume-percent, 100%), rgba(255, 255, 255, 0.2) var(--volume-percent, 100%), rgba(255, 255, 255, 0.2) 100%);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: #00d4ff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+      transition: transform 0.2s;
+    }
+
+    .volume-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .volume-slider::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      background: #00d4ff;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+    }
+
+    .volume-value {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: #00d4ff;
+      min-width: 35px;
+      text-align: right;
+    }
+
+    .time-display {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: #c8dff0;
+      white-space: nowrap;
+      display: flex;
+      gap: 4px;
+      background: rgba(0, 212, 255, 0.05);
+      padding: 4px 10px;
+      border-radius: 3px;
+    }
+
+    .time-separator {
+      color: #4a6a88;
+    }
+
+    .control-select {
+      background: rgba(0, 212, 255, 0.05);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      color: #c8dff0;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 6px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .control-select:hover {
+      border-color: #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
+    }
+
+    .control-select option {
+      background: var(--surface);
+      color: #c8dff0;
+    }
+
+    .buffering-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #00d4ff;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(0, 212, 255, 0.2);
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .video-player.theater-mode {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 10000 !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }
+
+    .bottom-strip {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      padding: 12px 24px;
+      border-top: 1px solid var(--border);
+      background: rgba(7, 18, 32, 0.95);
+      font-family: var(--mono);
+      font-size: 0.58rem;
+      color: var(--text-dim);
+      letter-spacing: 0.12em;
+    }
+
+    .strip-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    details {
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+    }
+
+    details summary {
+      list-style: none;
+      cursor: crosshair;
+      padding: 12px 0;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.12em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    details summary::after {
+      content: '▸';
+      transition: transform 0.2s;
+    }
+
+    details[open] summary::after {
+      transform: rotate(90deg);
+    }
+
+    details p {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      line-height: 1.8;
+      padding-bottom: 12px;
+    }
+
+    details code {
+      background: rgba(0, 212, 255, 0.08);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      padding: 1px 6px;
+      color: var(--cyan);
+    }
+
+    @media(max-width: 680px) {
+
+      .radar-rig,
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .ship-header {
+        grid-template-columns: 1fr;
+      }
+
+      .ship-header .header-gauges {
+        display: none;
+      }
+
+      .brand::before,
+      .brand::after {
+        display: none;
+      }
+
+      .download-metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .stream-container {
+        flex-direction: column;
+      }
+
+      .video-player {
+        min-height: 350px;
+      }
+
+      .volume-slider-container {
+        display: none !important;
+      }
+
+      .control-select {
+        font-size: 0.65rem;
+        padding: 4px 6px;
+      }
+
+      .time-display {
+        font-size: 0.65rem;
+      }
+
+      .controls-row {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <video id="bg-video" src="295321.mp4" autoplay muted loop playsinline></video>
+
+  <!-- BOOT SCREEN -->
+  <div id="boot-screen">
+    <div class="boot-logo">XDOWN</div>
+    <div class="boot-sub">Orbital Intercept System v4.2</div>
+    <div class="boot-bar-wrap">
+      <div class="boot-bar-label">
+        <span>SYSTEM INIT</span>
+        <span id="boot-pct">0%</span>
+      </div>
+      <div class="boot-bar">
+        <div class="boot-bar-fill" id="boot-fill"></div>
+      </div>
+    </div>
+    <div class="boot-log" id="boot-log"></div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app" style="opacity:0; transition: opacity 0.6s ease;">
+
+    <div class="status-bar-top">
+      <div class="sbar-group">
+        <div class="sbar-item"><span class="dot green"></span>SYSTEMS NOMINAL</div>
+        <div class="sbar-item"><span class="dot cyan"></span>INTERCEPTOR READY</div>
+      </div>
+      <div class="sbar-group" style="font-size:0.58rem;">
+        <span id="clock">00:00:00 UTC</span>
+      </div>
+      <div class="sbar-group">
+        <div class="sbar-item"><span class="dot amber"></span>YT-DLP ENGINE</div>
+        <div class="sbar-item"><span class="dot green"></span>FFMPEG PIPE</div>
+      </div>
+    </div>
+
+    <div class="wrapper">
+
+      <div class="ship-header">
+        <div class="header-gauges">
+          <div class="gauge">
+            <div class="gauge-ring">
+              <svg viewBox="0 0 48 48" width="48" height="48">
+                <circle class="gauge-track" cx="24" cy="24" r="20" />
+                <circle class="gauge-fill" cx="24" cy="24" r="20" stroke="var(--cyan)" stroke-dasharray="125.6"
+                  stroke-dashoffset="28" id="g1" />
+              </svg>
+              <div class="gauge-val" style="font-size:0.5rem;">78%</div>
+            </div>
+            <div class="gauge-label">PIPE</div>
+          </div>
+          <div class="gauge">
+            <div class="gauge-ring">
+              <svg viewBox="0 0 48 48" width="48" height="48">
+                <circle class="gauge-track" cx="24" cy="24" r="20" />
+                <circle class="gauge-fill" cx="24" cy="24" r="20" stroke="var(--green)" stroke-dasharray="125.6"
+                  stroke-dashoffset="62" id="g2" />
+              </svg>
+              <div class="gauge-val" style="font-size:0.5rem;color:var(--green)">51%</div>
+            </div>
+            <div class="gauge-label">NET</div>
+          </div>
+        </div>
+
+        <div class="header-center">
+          <div class="brand">XDOWN</div>
+          <div class="brand-sub">Orbital Stream Intercept · Build 4.2</div>
+        </div>
+
+        <div class="header-gauges right">
+          <div class="gauge">
+            <div class="gauge-ring">
+              <svg viewBox="0 0 48 48" width="48" height="48">
+                <circle class="gauge-track" cx="24" cy="24" r="20" />
+                <circle class="gauge-fill" cx="24" cy="24" r="20" stroke="var(--amber)" stroke-dasharray="125.6"
+                  stroke-dashoffset="45" id="g3" />
+              </svg>
+              <div class="gauge-val" style="font-size:0.5rem;color:var(--amber)">64%</div>
+            </div>
+            <div class="gauge-label">CPU</div>
+          </div>
+          <div class="gauge">
+            <div class="gauge-ring">
+              <svg viewBox="0 0 48 48" width="48" height="48">
+                <circle class="gauge-track" cx="24" cy="24" r="20" />
+                <circle class="gauge-fill" cx="24" cy="24" r="20" stroke="var(--purple)" stroke-dasharray="125.6"
+                  stroke-dashoffset="18" id="g4" />
+              </svg>
+              <div class="gauge-val" style="font-size:0.5rem;color:var(--purple)">86%</div>
+            </div>
+            <div class="gauge-label">MEM</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">SIGNAL ACQUISITION</div>
+          <div class="panel-status">STANDBY</div>
+        </div>
+        <div class="panel-body">
+          <div class="input-rig">
+            <div class="url-wrap">
+              <input class="url-field" id="url-input" type="url"
+                placeholder="youtube.com/watch?v=  ·  xhamster.com/  ·  any video url" autocomplete="off"
+                spellcheck="false" />
+            </div>
+            <button class="launch-btn" id="fetch-btn" onclick="fetchInfo()">
+              <span class="btn-icon">◎</span>
+              <span>SCAN</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="analysis-panel">
+        <div class="panel-header">
+          <div class="panel-title">SIGNAL DECODE SEQUENCE</div>
+          <div class="panel-status" id="analysis-status">SCANNING...</div>
+        </div>
+        <div class="panel-body">
+          <div class="radar-rig">
+            <div class="radar-container">
+              <svg class="radar-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1" />
+                <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1" />
+                <circle cx="100" cy="100" r="40" fill="none" stroke="rgba(0,212,255,0.1)" stroke-width="1" />
+                <circle cx="100" cy="100" r="15" fill="none" stroke="rgba(0,212,255,0.15)" stroke-width="1" />
+                <line x1="10" y1="100" x2="190" y2="100" stroke="rgba(0,212,255,0.06)" stroke-width="1" />
+                <line x1="100" y1="10" x2="100" y2="190" stroke="rgba(0,212,255,0.06)" stroke-width="1" />
+                <line x1="36" y1="36" x2="164" y2="164" stroke="rgba(0,212,255,0.04)" stroke-width="1" />
+                <line x1="164" y1="36" x2="36" y2="164" stroke="rgba(0,212,255,0.04)" stroke-width="1" />
+                <g class="radar-sweep">
+                  <path d="M100,100 L190,100 A90,90 0 0,1 163.6,163.6 Z" fill="url(#sweep-grad)" opacity="0.6" />
+                  <defs>
+                    <radialGradient id="sweep-grad" cx="0%" cy="50%" r="100%">
+                      <stop offset="0%" stop-color="rgba(0,212,255,0.5)" />
+                      <stop offset="100%" stop-color="rgba(0,212,255,0)" />
+                    </radialGradient>
+                  </defs>
+                </g>
+                <g id="radar-blips"></g>
+                <circle cx="100" cy="100" r="3" fill="var(--cyan)" opacity="0.8" />
+              </svg>
+              <div class="radar-crosshair">
+                <span id="radar-label" style="color:var(--cyan);font-size:0.55rem;">SCANNING</span>
+                <span id="radar-freq" style="color:var(--text-dim);font-size:0.5rem;">0.00 MHz</span>
+              </div>
+            </div>
+
+            <div class="decode-area" id="decode-area">
+              <div class="decode-row" data-step="0">
+                <div class="decode-tick">○</div>
+                <div class="decode-label">HANDSHAKE</div>
+                <div class="decode-value">—</div>
+              </div>
+              <div class="decode-row" data-step="1">
+                <div class="decode-tick">○</div>
+                <div class="decode-label">DNS RESOLVE</div>
+                <div class="decode-value">—</div>
+              </div>
+              <div class="decode-row" data-step="2">
+                <div class="decode-tick">○</div>
+                <div class="decode-label">EXTRACTOR</div>
+                <div class="decode-value">—</div>
+              </div>
+              <div class="decode-row" data-step="3">
+                <div class="decode-tick">○</div>
+                <div class="decode-label">MANIFEST</div>
+                <div class="decode-value">—</div>
+              </div>
+              <div class="decode-row" data-step="4">
+                <div class="decode-tick">○</div>
+                <div class="decode-label">STREAM MAP</div>
+                <div class="decode-value">—</div>
+              </div>
+              <div class="decode-row" data-step="5">
+                <div class="decode-tick">○</div>
+                <div class="decode-label">QUALITY SEL</div>
+                <div class="decode-value">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="result-panel">
+        <div class="panel-header">
+          <div class="panel-title">INTERCEPTED TARGET</div>
+          <div class="panel-status" style="color:var(--green)">LOCKED ON</div>
+        </div>
+        <div class="panel-body">
+          <div class="result-grid">
+            <div class="thumb-frame" id="thumb-wrap">
+              <div class="thumb-placeholder">NO SIGNAL</div>
+            </div>
+            <div class="meta-grid" id="meta-grid">
+              <div class="meta-row title">
+                <div class="meta-key">TITLE</div>
+                <div class="meta-val" id="video-title">—</div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-key">SOURCE</div>
+                <div class="meta-val" id="video-source">—</div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-key">UPLOADER</div>
+                <div class="meta-val" id="video-author">—</div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-key">DURATION</div>
+                <div class="meta-val" id="video-dur">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="quality-badge">
+            <div>
+              <div class="q-label">SELECTED QUALITY</div>
+              <select id="quality-display" class="q-val"
+                style="background: var(--void); border: 1px solid var(--border); outline: none; cursor: pointer; width: 100%; padding: 2px;">
+                <option value="best">▲ BEST AVAILABLE</option>
+              </select>
+            </div>
+            <div class="q-auto">AUTO-MAX · NO LIMIT</div>
+          </div>
+
+          <div class="action-row">
+            <button type="button" class="dl-btn" id="dl-btn" data-disabled="true" onclick="startWarpDownload(event)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>DOWNLOAD</span>
+            </button>
+            <button type="button" class="stream-btn" id="stream-btn" data-disabled="true" onclick="startStream(event)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <span>STREAM</span>
+            </button>
+            <button type="button" class="stream-btn" id="audio-btn" data-disabled="true" onclick="downloadAudio()"
+              style="background: linear-gradient(135deg, #1a472a, #2d6a4f); border-color: #52b788;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+              <span>🎵 AUDIO</span>
+            </button>
+            <button class="reset-btn" onclick="reset()">[ ABORT / NEW ]</button>
+          </div>
+
+          <details>
+            <summary>SYSTEM REQUIREMENTS & TROUBLESHOOTING</summary>
+            <p>
+              1. Install: <code>Node.js</code> · <code>yt-dlp</code> · <code>FFmpeg</code> ·
+              <code>Google Chrome</code><br>
+              2. Run: <code>npm install express cors puppeteer-core</code><br>
+              3. Launch: <code>node server.js</code><br>
+              4. <strong>Adult sites (PornHub, xHamster):</strong> Must be logged in to Chrome — server reads cookies
+              via <code>--cookies-from-browser chrome</code><br>
+              5. Update Chrome path in <code>server.js</code> for your OS (Windows/Linux/Mac)
+            </p>
+          </details>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="bottom-strip">
+      <div class="strip-item"><span class="dot cyan" style="width:5px;height:5px;"></span>YT-DLP ACTIVE</div>
+      <div class="strip-item"><span class="dot green" style="width:5px;height:5px;"></span>FFMPEG PIPE READY</div>
+      <div class="strip-item"><span class="dot green" style="width:5px;height:5px;"></span>PUPPETEER STANDBY</div>
+      <div class="strip-item"><span class="dot amber" style="width:5px;height:5px;"></span>CHROMIUM LOADED</div>
+      <span style="margin-left:auto;">ORBITAL INTERCEPT v5.0 · HLS READY</span>
+    </div>
+
+  </div>
+
+  <!-- WARP DOWNLOAD HUD -->
+  <div id="warp-hud">
+    <div class="warp-tunnel" id="warp-tunnel"></div>
+    <button class="warp-close" id="warp-close" onclick="closeWarp()">[ DISMISS ]</button>
+
+    <div class="warp-center">
+      <div class="reactor">
+        <div class="reactor-ring r1"></div>
+        <div class="reactor-ring r2"></div>
+        <div class="reactor-ring r3"></div>
+        <div class="reactor-core" id="reactor-core">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="warp-terminal">
+        <div class="term-header">
+          <div class="term-dots">
+            <div class="term-dot r"></div>
+            <div class="term-dot a"></div>
+            <div class="term-dot g"></div>
+          </div>
+          <span>XDOWN STREAM CONSOLE</span>
+          <span id="term-clock">00:00</span>
+        </div>
+        <div class="term-body" id="terminal-output"></div>
+
+        <div class="download-metrics">
+          <div class="metric-box">
+            <div class="metric-label">TRANSFER</div>
+            <div class="metric-value" id="metric-speed">0 MB/s</div>
+            <div class="metric-sub">PIPE STABLE</div>
+          </div>
+
+          <div class="metric-box">
+            <div class="metric-label">DOWNLOADED</div>
+            <div class="metric-value" id="metric-size">0 MB</div>
+            <div class="metric-sub">CACHE WRITE</div>
+          </div>
+
+          <div class="metric-box">
+            <div class="metric-label">FRAMES</div>
+            <div class="metric-value" id="metric-frames">0</div>
+            <div class="metric-sub">MUX ACTIVE</div>
+          </div>
+
+          <div class="metric-box">
+            <div class="metric-label">STATUS</div>
+            <div class="metric-value" id="metric-state" style="color:var(--green)">LIVE</div>
+            <div class="metric-sub">FFMPEG PIPE</div>
+          </div>
+        </div>
+
+        <div class="download-bar-wrap">
+          <div class="download-bar">
+            <div class="download-bar-fill" id="download-fill"></div>
+          </div>
+          <div class="download-bar-text">
+            <span id="download-phase">NEGOTIATING STREAM...</span>
+            <span id="download-percent">0%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STREAM WINDOW -->
+  <div id="stream-window">
+    <div class="stream-header">
+      <div>
+        <div class="stream-title">◆ LIVE STREAM</div>
+        <div class="stream-status">BROADCAST ACTIVE</div>
+      </div>
+      <button class="stream-close" onclick="closeStream()">[ EXIT STREAM ]</button>
+    </div>
+    <div class="stream-body">
+      <div class="stream-container">
+        <div class="video-player" id="video-player-container">
+          <video id="stream-video" preload="auto" playsinline></video>
+
+          <div class="buffering-indicator" id="buffering-indicator" style="display:none;">
+            <div class="spinner"></div>
+            <span>Buffering...</span>
+          </div>
+        </div>
+
+        <div class="stream-info">
+          <div class="stream-info-row">
+            <span class="stream-info-label">TITLE:</span>
+            <span id="stream-video-title">Loading...</span>
+          </div>
+          <div class="stream-info-row">
+            <span class="stream-info-label">SOURCE:</span>
+            <span id="stream-video-source">—</span>
+          </div>
+          <div class="stream-info-row">
+            <span class="stream-info-label">STATUS:</span>
+            <span id="stream-video-status" style="color:#39ff14;">CONNECTED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.ui.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/controls.min.css">
+  <script>
+    /* ── STATE ──────────────────────────────── */
+    let videoInfo = null;
+    let hlsInstance = null;
+    let shakaPlayer = null;
+    let terminalInterval = null;
+    let termSeconds = 0;
+    let termClockInterval = null;
+    let fakeDownloadTimer = null;
+    let downloadPoller = null;
+    let radarBlipTimer = null;
+    let playerState = null;
+
+    // ── SessionStorage helpers for crash/refresh resilience ────────────────
+    function saveSession(info, url) {
+      try {
+        sessionStorage.setItem('xdown_videoInfo', JSON.stringify(info));
+        sessionStorage.setItem('xdown_url', url);
+        sessionStorage.setItem('xdown_ts', Date.now());
+      } catch (e) { /* quota exceeded – ignore */ }
+    }
+    function clearSession() {
+      sessionStorage.removeItem('xdown_videoInfo');
+      sessionStorage.removeItem('xdown_url');
+      sessionStorage.removeItem('xdown_ts');
+      sessionStorage.removeItem('xdown_downloading');
+    }
+    function restoreSession() {
+      try {
+        const raw = sessionStorage.getItem('xdown_videoInfo');
+        const savedUrl = sessionStorage.getItem('xdown_url');
+        const ts = Number(sessionStorage.getItem('xdown_ts') || 0);
+        const wasDownloading = sessionStorage.getItem('xdown_downloading') === '1';
+        if (!raw || !savedUrl) return;
+        // Ignore stale sessions older than 10 minutes
+        if (Date.now() - ts > 10 * 60 * 1000) { clearSession(); return; }
+        const info = JSON.parse(raw);
+        videoInfo = info;
+        urlInput.value = savedUrl;
+        // Re-populate result panel (minimal restore)
+        document.getElementById('analysis-status').textContent = '◆ SIGNAL LOCKED (RESTORED)';
+        const tw = document.getElementById('thumb-wrap');
+        tw.innerHTML = info.thumbnail
+          ? `<img src="${san(info.thumbnail)}" alt="thumb" loading="lazy">`
+          : `<div class="thumb-placeholder">NO SIGNAL</div>`;
+        document.getElementById('video-title').textContent = info.title || 'Unknown';
+        document.getElementById('video-source').textContent = (info.extractor || '—').toUpperCase();
+        document.getElementById('video-author').textContent = info.uploader || '—';
+        document.getElementById('video-dur').textContent = fmt(info.duration);
+        const qEl = document.getElementById('quality-display');
+        qEl.innerHTML = '';
+        if (info.formats && info.formats.length > 0) {
+          const bestOpt = document.createElement('option');
+          bestOpt.value = 'best';
+          bestOpt.textContent = `▲ BEST OF ${info.formats.length} FORMATS`;
+          qEl.appendChild(bestOpt);
+          info.formats.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.format_id;
+            const sizeStr = f.filesize ? ` (${(f.filesize / 1024 / 1024).toFixed(1)}MB)` : '';
+            const codecStr = f.vcodec !== 'none' && f.acodec !== 'none' ? ' 🔊' : (f.acodec === 'none' ? ' 🔇' : '');
+            const fpsStr = (f.fps && f.fps > 0) ? ` ${f.fps}fps` : '';
+            opt.textContent = `▶ ${f.height}p${fpsStr}${codecStr}${sizeStr}`;
+            qEl.appendChild(opt);
+          });
+        }
+        document.getElementById('result-panel').className = 'active';
+        document.getElementById('dl-btn').removeAttribute('data-disabled');
+        document.getElementById('stream-btn').removeAttribute('data-disabled');
+        // Show a resume banner if a download was in progress \u2014 don't auto-call
+        // showSaveFilePicker() since it requires a real user gesture or it'll loop.
+        if (wasDownloading) {
+          sessionStorage.removeItem('xdown_downloading');
+          console.log('\ud83d\udd04 Download was interrupted by page refresh \u2014 showing resume banner');
+          // Inject a resume banner into the page
+          const banner = document.createElement('div');
+          banner.id = 'resume-banner';
+          banner.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: linear-gradient(90deg, #ff6b35, #f7c59f);
+            color: #1a1a2e; font-family: 'Courier New', monospace;
+            font-weight: bold; font-size: 14px;
+            padding: 12px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(255,107,53,0.5);
+            animation: slideDown 0.3s ease;
+          `;
+          banner.innerHTML = `
+            <span>\u26a0\ufe0f Download interrupted by browser refresh. Click to resume.</span>
+            <div style="display:flex;gap:10px">
+              <button onclick="startWarpDownload({preventDefault:()=>{}})" style="
+                background:#1a1a2e; color:#ff6b35; border:2px solid #ff6b35;
+                padding:6px 16px; font-family:inherit; font-weight:bold;
+                cursor:pointer; border-radius:4px; font-size:13px;
+              ">\u25b6 RESUME</button>
+              <button onclick="document.getElementById('resume-banner').remove();clearSession();" style="
+                background:transparent; color:#1a1a2e; border:2px solid #1a1a2e;
+                padding:6px 12px; font-family:inherit; cursor:pointer;
+                border-radius:4px; font-size:13px;
+              ">\u2715</button>
+            </div>
+          `;
+          document.body.prepend(banner);
+        }
+      } catch (e) { clearSession(); }
+    }
+
+    const urlInput = document.getElementById('url-input');
+
+    // Boot: fetch server config (single source of truth for cookie domains)
+    let serverConfig = { cookieDomains: [], adDomains: [] };
+    fetch('/config').then(r => r.json()).then(cfg => {
+      serverConfig = cfg;
+      console.log('📋 Server config loaded — v' + cfg.version);
+    }).catch(() => console.warn('⚠️ Could not load server config'));
+
+    // Clipboard paste detection — auto-fetch on paste
+    document.addEventListener('paste', e => {
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+        if (document.activeElement !== urlInput) {
+          urlInput.value = text;
+          fetchInfo();
+        }
+      }
+    });
+
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchInfo(); });
+
+    function getServer() { return ''; }
+    function san(s) { return (s || '').replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c])); }
+    function fmt(s) {
+      if (!s) return '—';
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+    }
+    function buildDlUrl(useStream = false) {
+      const pageUrl = urlInput.value.trim();
+      const targetUrl = (videoInfo && videoInfo.url) ? videoInfo.url : pageUrl;
+      const qEl = document.getElementById('quality-display');
+      const selectedFormat = qEl ? qEl.value : 'best';
+      const isCustomQuality = selectedFormat !== 'best';
+
+      const endpoint = isCustomQuality ? '/download-quality' : '/download';
+
+      let u = `${getServer()}${endpoint}?url=${encodeURIComponent(targetUrl)}&originalUrl=${encodeURIComponent(pageUrl)}`;
+      if (useStream) u += `&inline=true`;
+      if (isCustomQuality) u += `&format_id=${encodeURIComponent(selectedFormat)}`;
+
+      if (videoInfo?.stream) u += `&stream=${encodeURIComponent(videoInfo.stream)}`;
+      if (videoInfo?.streamType) u += `&streamType=${encodeURIComponent(videoInfo.streamType)}`;
+      if (videoInfo?.title) u += `&title=${encodeURIComponent(videoInfo.title)}`;
+      return u;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('clock').textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())} UTC`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 🔄 Restore previous session if page was refreshed mid-download
+    restoreSession();
+
+
+    /* ── BOOT ──────────────────────────────── */
+    const bootLines = [
+      { t: 'sys', s: 'XDOWN ORBITAL INTERCEPT SYSTEM v4.2' },
+      { t: 'ok', s: '[ OK ] Kernel loaded — arm64-darwin' },
+      { t: 'sys', s: 'Initializing memory subsystems...' },
+      { t: 'ok', s: '[ OK ] 16 GB heap allocated' },
+      { t: 'sys', s: 'Loading yt-dlp extraction engine...' },
+      { t: 'ok', s: '[ OK ] yt-dlp 2024.11.18 — 1847 extractors' },
+      { t: 'sys', s: 'Mounting FFmpeg pipe interface...' },
+      { t: 'ok', s: '[ OK ] FFmpeg 8.1.1 — frag_keyframe pipe ready' },
+      { t: 'sys', s: 'Spawning Chromium intercept node...' },
+      { t: 'ok', s: '[ OK ] Puppeteer headless Chrome connected' },
+      { t: 'sys', s: 'Calibrating HLS/DASH stream resolver...' },
+      { t: 'ok', s: '[ OK ] Adaptive stream parser armed' },
+      { t: 'sys', s: 'Running self-diagnostics...' },
+      { t: 'ok', s: '[ OK ] All systems nominal' },
+      { t: 'sys', s: 'SYSTEM READY — AWAITING TARGET ACQUISITION' },
+    ];
+
+    function runBoot() {
+      const log = document.getElementById('boot-log');
+      const fill = document.getElementById('boot-fill');
+      const pct = document.getElementById('boot-pct');
+      let i = 0;
+
+      const tick = setInterval(() => {
+        if (i >= bootLines.length) {
+          clearInterval(tick);
+          setTimeout(() => {
+            document.getElementById('boot-screen').classList.add('hidden');
+            document.getElementById('app').style.opacity = '1';
+          }, 400);
+          return;
+        }
+
+        const line = bootLines[i];
+        const p = document.createElement('div');
+        p.className = 'boot-log-line ' + line.t;
+        p.textContent = line.s;
+        log.appendChild(p);
+        if (log.children.length > 7) log.removeChild(log.firstChild);
+
+        const progress = Math.round(((i + 1) / bootLines.length) * 100);
+        fill.style.width = progress + '%';
+        pct.textContent = progress + '%';
+
+        i++;
+      }, 120);
+    }
+
+    runBoot();
+
+    /* ── RADAR ──────────────────────────────── */
+    function spawnBlip() {
+      const g = document.getElementById('radar-blips');
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 20 + Math.random() * 70;
+      const cx = 100 + Math.cos(angle) * dist;
+      const cy = 100 + Math.sin(angle) * dist;
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', '3');
+      circle.setAttribute('fill', 'var(--cyan)');
+      circle.classList.add('radar-blip');
+      g.appendChild(circle);
+
+      setTimeout(() => { try { g.removeChild(circle); } catch { } }, 2400);
+    }
+
+    function startRadar() {
+      clearInterval(radarBlipTimer);
+      radarBlipTimer = setInterval(spawnBlip, 400);
+
+      let freq = 0;
+      const freqTimer = setInterval(() => {
+        freq = (Math.random() * 999).toFixed(2);
+        document.getElementById('radar-freq').textContent = freq + ' MHz';
+      }, 200);
+
+      return freqTimer;
+    }
+
+    function stopRadar(freqTimer) {
+      clearInterval(radarBlipTimer);
+      clearInterval(freqTimer);
+      document.getElementById('radar-freq').textContent = 'LOCKED';
+      document.getElementById('radar-label').textContent = 'ACQUIRED';
+    }
+
+    /* ── DECODE ──────────────────────────────── */
+    const decodeSteps = [
+      { label: 'HANDSHAKE', values: ['SYN > SYN-ACK', 'TLS 1.3', 'ESTABLISHED'] },
+      { label: 'DNS RESOLVE', values: ['QUERYING...', 'A-RECORD HIT', 'RESOLVED'] },
+      { label: 'EXTRACTOR', values: ['yt-dlp probe', 'MATCHING...', 'EXTRACTOR OK'] },
+      { label: 'MANIFEST', values: ['FETCHING...', 'PARSING...', 'DECODED'] },
+      { label: 'STREAM MAP', values: ['INDEXING...', 'FORMAT LIST', 'MAPPED'] },
+      { label: 'QUALITY SEL', values: ['SCORING...', 'BEST=MAX', '▲ BEST HQ'] },
+    ];
+
+    function resetDecode() {
+      document.querySelectorAll('#decode-area .decode-row').forEach(row => {
+        row.className = 'decode-row';
+        row.querySelector('.decode-tick').textContent = '○';
+        row.querySelector('.decode-value').textContent = '—';
+      });
+    }
+
+    function animateDecode(onDone) {
+      const rows = document.querySelectorAll('#decode-area .decode-row');
+      let step = 0;
+
+      function doStep() {
+        if (step >= rows.length) { onDone(); return; }
+        const row = rows[step];
+        const tick = row.querySelector('.decode-tick');
+        const val = row.querySelector('.decode-value');
+        const info = decodeSteps[step];
+
+        row.classList.add('active');
+        tick.textContent = '◌';
+
+        let vi = 0;
+        const vTimer = setInterval(() => {
+          val.textContent = info.values[vi % info.values.length];
+          vi++;
+          if (vi >= info.values.length + 2) {
+            clearInterval(vTimer);
+            val.textContent = info.values[info.values.length - 1];
+            row.classList.remove('active');
+            row.classList.add('done');
+            tick.textContent = '✓';
+            step++;
+            setTimeout(doStep, 150);
+          }
+        }, 120);
+      }
+
+      doStep();
+    }
+
+    /* ── FETCH INFO ──────────────────────────── */
+    async function fetchInfo() {
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      document.getElementById('fetch-btn').disabled = true;
+      document.getElementById('result-panel').className = '';
+      document.getElementById('analysis-panel').className = 'panel visible';
+      document.getElementById('analysis-status').textContent = 'SCANNING...';
+
+      resetDecode();
+      const freqTimer = startRadar();
+
+      const eventSource = new EventSource(`${getServer()}/info-stream?url=${encodeURIComponent(url)}`);
+
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.complete) {
+          eventSource.close();
+          stopRadar(freqTimer);
+
+          if (data.error) {
+            document.getElementById('analysis-status').textContent = `✕ ERROR: ${data.error}`;
+          } else {
+            document.getElementById('analysis-status').textContent = '◆ SIGNAL LOCKED';
+            videoInfo = data.info;
+            saveSession(data.info, url);
+
+            const tw = document.getElementById('thumb-wrap');
+            tw.innerHTML = data.info.thumbnail
+              ? `<img src="${san(data.info.thumbnail)}" alt="thumb" loading="lazy">`
+              : `<div class="thumb-placeholder">NO SIGNAL</div>`;
+
+            document.getElementById('video-title').textContent = data.info.title || 'Unknown';
+            document.getElementById('video-source').textContent = (data.info.extractor || data.source || '—').toUpperCase();
+            document.getElementById('video-author').textContent = data.info.uploader || '—';
+            document.getElementById('video-dur').textContent = fmt(data.info.duration);
+
+            const qEl = document.getElementById('quality-display');
+            qEl.innerHTML = '';
+
+            if (data.info.formats && data.info.formats.length > 0) {
+              const bestOpt = document.createElement('option');
+              bestOpt.value = 'best';
+              bestOpt.textContent = `▲ BEST OF ${data.info.formats.length} FORMATS`;
+              qEl.appendChild(bestOpt);
+
+              data.info.formats.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.format_id;
+                // Show file size estimate (actual if available, else estimate from bitrate)
+                const sizeBytes = f.filesize || (f.tbr && data.info.duration ? (f.tbr * 1000 / 8) * data.info.duration : 0);
+                const sizeStr = sizeBytes > 0 ? ` · ~${(sizeBytes / 1024 / 1024).toFixed(0)}MB` : '';
+                const hasAudio = f.acodec !== 'none' && f.acodec !== undefined;
+                const audioStr = hasAudio ? ' 🔊' : ' 🔇';
+                const fpsStr = (f.fps && f.fps > 0) ? ` ${f.fps}fps` : '';
+                opt.textContent = `▶ ${f.height}p${fpsStr}${audioStr}${sizeStr}`;
+                qEl.appendChild(opt);
+              });
+            } else {
+              const bestOpt = document.createElement('option');
+              bestOpt.value = 'best';
+              bestOpt.textContent = '▲ BEST AVAILABLE';
+              qEl.appendChild(bestOpt);
+            }
+
+            // Reset video player, no pre-buffering
+            const streamVideo = document.getElementById('stream-video');
+            streamVideo.pause();
+            streamVideo.removeAttribute('src');
+            streamVideo.load();
+
+            document.getElementById('dl-btn').removeAttribute('data-disabled');
+            document.getElementById('stream-btn').removeAttribute('data-disabled');
+            document.getElementById('audio-btn').removeAttribute('data-disabled');
+
+            setTimeout(() => {
+              document.getElementById('result-panel').className = 'panel visible';
+            }, 500);
+          }
+
+          document.getElementById('fetch-btn').disabled = false;
+          return;
+        }
+
+        const row = document.querySelector(`[data-step="${data.step}"]`);
+        if (!row) return;
+
+        const tick = row.querySelector('.decode-tick');
+        const val = row.querySelector('.decode-value');
+
+        if (data.status === 'active') {
+          row.className = 'decode-row active';
+          tick.textContent = '◌';
+          val.textContent = data.message;
+        } else if (data.status === 'done') {
+          row.className = 'decode-row done';
+          tick.textContent = '✓';
+          val.textContent = data.message;
+        } else if (data.status === 'error') {
+          row.className = 'decode-row error';
+          tick.textContent = '✕';
+          val.textContent = data.message;
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        stopRadar(freqTimer);
+        document.getElementById('analysis-status').textContent = '✕ CONNECTION LOST';
+        document.getElementById('fetch-btn').disabled = false;
+      };
+    }
+
+    /* ── ENHANCED VIDEO PLAYER ──────────────────────── */
+    function initVideoPlayer() {
+      const video = document.getElementById('stream-video');
+      const playerContainer = document.getElementById('video-player-container');
+
+      // Remove any existing controls
+      const existingWrapper = playerContainer.querySelector('.player-wrapper');
+      if (existingWrapper) {
+        existingWrapper.remove();
+      }
+
+      // Create controls HTML
+      const controlsHTML = `
+        <div class="player-wrapper">
+          <div class="player-controls" id="player-controls">
+            <div class="progress-wrapper">
+              <div class="progress-container" id="progress-container">
+                <div class="progress-buffered" id="progress-buffered"></div>
+                <div class="progress-fill" id="progress-fill"></div>
+                <div class="progress-handle" id="progress-handle"></div>
+                <div class="progress-tooltip" id="progress-tooltip">0:00</div>
+              </div>
+            </div>
+
+            <div class="controls-row">
+              <div class="controls-left">
+                <button class="control-btn" id="play-btn" title="Play/Pause (Space)">
+                  <svg class="icon-play" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21"/>
+                  </svg>
+                  <svg class="icon-pause" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="display:none;">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                  </svg>
+                </button>
+
+                <div class="volume-group">
+                  <button class="control-btn" id="volume-btn" title="Mute (M)">
+                    <svg class="icon-volume" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                    </svg>
+                  </button>
+                  <div class="volume-slider-container">
+                    <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="100">
+                    <span id="volume-value" class="volume-value">100%</span>
+                  </div>
+                </div>
+
+                <div class="time-display">
+                  <span id="current-time">0:00</span>
+                  <span class="time-separator">/</span>
+                  <span id="duration">0:00</span>
+                </div>
+              </div>
+
+              <div class="controls-right">
+                <select id="stream-quality-select" class="control-select" title="Video Quality">
+                  <option value="best">Auto/Best</option>
+                </select>
+
+                <select id="speed-select" class="control-select" title="Playback speed">
+                  <option value="0.5">0.5×</option>
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="1.25">1.25×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                </select>
+
+                <button class="control-btn" id="theater-btn" title="Theater Mode (T)">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="4" width="20" height="16" rx="1"/>
+                    <line x1="2" y1="8" x2="22" y2="8"/>
+                  </svg>
+                </button>
+
+                <button class="control-btn" id="fullscreen-btn" title="Fullscreen (F)">
+                  <svg class="icon-fullscreen" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                  </svg>
+                  <svg class="icon-fullscreen-exit" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none;">
+                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Insert controls after video
+      video.insertAdjacentHTML('afterend', controlsHTML);
+
+      // State
+      playerState = {
+        playing: false,
+        volume: 100,
+        isMuted: false,
+        isDraggingProgress: false,
+        isFullscreen: false,
+        isTheaterMode: false,
+        controlsTimeout: null,
+        lastMouseMove: Date.now()
+      };
+
+      // Elements
+      const playBtn = document.getElementById('play-btn');
+      const progressContainer = document.getElementById('progress-container');
+      const progressFill = document.getElementById('progress-fill');
+      const progressBuffered = document.getElementById('progress-buffered');
+      const progressHandle = document.getElementById('progress-handle');
+      const progressTooltip = document.getElementById('progress-tooltip');
+      const currentTimeEl = document.getElementById('current-time');
+      const durationEl = document.getElementById('duration');
+      const volumeBtn = document.getElementById('volume-btn');
+      const volumeSlider = document.getElementById('volume-slider');
+      const volumeValue = document.getElementById('volume-value');
+      const speedSelect = document.getElementById('speed-select');
+      const fullscreenBtn = document.getElementById('fullscreen-btn');
+      const theaterBtn = document.getElementById('theater-btn');
+      const playerControls = document.getElementById('player-controls');
+      const bufferingIndicator = document.getElementById('buffering-indicator');
+      const iconPlay = playBtn.querySelector('.icon-play');
+      const iconPause = playBtn.querySelector('.icon-pause');
+      const iconFullscreen = fullscreenBtn.querySelector('.icon-fullscreen');
+      const iconFullscreenExit = fullscreenBtn.querySelector('.icon-fullscreen-exit');
+
+      // Helper Functions
+      function formatTime(seconds) {
+        if (!seconds || isNaN(seconds) || !isFinite(seconds)) return '0:00';
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+
+        if (hours > 0) {
+          return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        return `${minutes}:${String(secs).padStart(2, '0')}`;
+      }
+
+      function updateProgress() {
+        if (!playerState.isDraggingProgress && video.duration) {
+          const percent = (video.currentTime / video.duration) * 100 || 0;
+          progressFill.style.width = percent + '%';
+          progressHandle.style.left = percent + '%';
+        }
+        currentTimeEl.textContent = formatTime(video.currentTime);
+      }
+
+      function updateBuffered() {
+        if (video.buffered.length > 0 && video.duration) {
+          const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+          const percent = (bufferedEnd / video.duration) * 100 || 0;
+          progressBuffered.style.width = percent + '%';
+        }
+      }
+
+      function togglePlayPause() {
+        if (video.paused) {
+          video.play().catch(err => {
+            console.error('Play failed:', err);
+          });
+        } else {
+          video.pause();
+        }
+      }
+
+      function updateVolume(newVolume) {
+        playerState.volume = Math.max(0, Math.min(100, newVolume));
+        video.volume = playerState.volume / 100;
+        const sa = document.getElementById('stream-audio');
+        if (sa) sa.volume = video.volume;
+
+        volumeSlider.value = playerState.volume;
+        volumeValue.textContent = Math.round(playerState.volume) + '%';
+
+        // Update slider gradient
+        volumeSlider.style.setProperty('--volume-percent', playerState.volume + '%');
+
+        playerState.isMuted = playerState.volume === 0;
+        video.muted = playerState.isMuted;
+        if (sa) sa.muted = playerState.isMuted;
+
+        if (playerState.isMuted) {
+          volumeBtn.classList.add('muted');
+        } else {
+          volumeBtn.classList.remove('muted');
+        }
+      }
+
+      function toggleMute() {
+        if (playerState.isMuted) {
+          updateVolume(playerState.volume || 80);
+        } else {
+          updateVolume(0);
+        }
+      }
+
+      function toggleFullscreen() {
+        const elem = playerContainer;
+
+        if (!playerState.isFullscreen) {
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(err => console.error('Fullscreen failed:', err));
+          } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+          } else if (elem.mozRequestFullScreen) {
+            elem.mozRequestFullScreen();
+          } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+          }
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+        }
+      }
+
+      function toggleTheaterMode() {
+        playerState.isTheaterMode = !playerState.isTheaterMode;
+
+        if (playerState.isTheaterMode) {
+          playerContainer.classList.add('theater-mode');
+          theaterBtn.classList.add('active');
+        } else {
+          playerContainer.classList.remove('theater-mode');
+          theaterBtn.classList.remove('active');
+        }
+      }
+
+      function showControls() {
+        playerState.lastMouseMove = Date.now();
+        playerControls.classList.remove('hidden');
+        playerContainer.style.cursor = 'default';
+
+        clearTimeout(playerState.controlsTimeout);
+
+        if (playerState.playing) {
+          playerState.controlsTimeout = setTimeout(() => {
+            if (Date.now() - playerState.lastMouseMove > 2500) {
+              hideControls();
+            }
+          }, 3000);
+        }
+      }
+
+      function hideControls() {
+        if (playerState.playing && !playerState.isDraggingProgress) {
+          playerControls.classList.add('hidden');
+          playerContainer.style.cursor = 'none';
+        }
+      }
+
+      function seekToPosition(clientX) {
+        const rect = progressContainer.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+        const time = (percent / 100) * video.duration;
+
+        if (isFinite(time) && time >= 0 && time <= video.duration) {
+          video.currentTime = time;
+          progressFill.style.width = percent + '%';
+          progressHandle.style.left = percent + '%';
+        }
+      }
+
+      // Event Handlers
+      playBtn.addEventListener('click', togglePlayPause);
+
+      video.addEventListener('play', () => {
+        playerState.playing = true;
+        iconPlay.style.display = 'none';
+        iconPause.style.display = 'block';
+        showControls();
+      });
+
+      video.addEventListener('pause', () => {
+        playerState.playing = false;
+        iconPlay.style.display = 'block';
+        iconPause.style.display = 'none';
+        showControls();
+      });
+
+      video.addEventListener('timeupdate', updateProgress);
+      video.addEventListener('progress', updateBuffered);
+
+      video.addEventListener('loadedmetadata', () => {
+        durationEl.textContent = formatTime(video.duration);
+        updateBuffered();
+        console.log('✅ Video metadata loaded, duration:', video.duration);
+      });
+
+      video.addEventListener('waiting', () => {
+        bufferingIndicator.style.display = 'flex';
+      });
+
+      video.addEventListener('canplay', () => {
+        bufferingIndicator.style.display = 'none';
+      });
+
+      video.addEventListener('playing', () => {
+        bufferingIndicator.style.display = 'none';
+      });
+
+      video.addEventListener('ended', () => {
+        playerState.playing = false;
+        iconPlay.style.display = 'block';
+        iconPause.style.display = 'none';
+        showControls();
+      });
+
+      // Progress seeking
+      progressContainer.addEventListener('mousedown', (e) => {
+        playerState.isDraggingProgress = true;
+        seekToPosition(e.clientX);
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (playerState.isDraggingProgress) {
+          seekToPosition(e.clientX);
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        playerState.isDraggingProgress = false;
+      });
+
+      playerContainer.addEventListener('mousemove', showControls);
+      playerContainer.addEventListener('mouseleave', hideControls);
+
+      progressContainer.addEventListener('click', (e) => {
+        seekToPosition(e.clientX);
+      });
+
+      progressContainer.addEventListener('mousemove', (e) => {
+        if (!video.duration) return;
+
+        const rect = progressContainer.getBoundingClientRect();
+        const percent = ((e.clientX - rect.left) / rect.width) * 100;
+        const time = (percent / 100) * video.duration;
+
+        progressTooltip.textContent = formatTime(time);
+        progressTooltip.style.left = Math.max(0, Math.min(100, percent)) + '%';
+      });
+
+      // Volume controls
+      volumeBtn.addEventListener('click', toggleMute);
+      volumeSlider.addEventListener('input', (e) => {
+        updateVolume(parseFloat(e.target.value));
+      });
+
+      // Speed control
+      speedSelect.addEventListener('change', (e) => {
+        video.playbackRate = parseFloat(e.target.value);
+      });
+
+      const streamQualitySelect = document.getElementById('stream-quality-select');
+      streamQualitySelect.addEventListener('change', (e) => {
+        if (hlsInstance || shakaPlayer) return; // Handled natively by HLS/DASH
+
+        const mainQualitySelect = document.getElementById('quality-display');
+        if (mainQualitySelect) {
+          mainQualitySelect.value = e.target.value;
+        }
+
+        const currentTime = video.currentTime;
+        const wasPlaying = !video.paused;
+
+        // Start the stream with the new quality and pass the preserved time
+        startStream(null, currentTime, wasPlaying);
+      });
+
+      // Fullscreen
+      fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+      document.addEventListener('fullscreenchange', () => {
+        playerState.isFullscreen = !!document.fullscreenElement;
+        if (playerState.isFullscreen) {
+          iconFullscreen.style.display = 'none';
+          iconFullscreenExit.style.display = 'block';
+        } else {
+          iconFullscreen.style.display = 'block';
+          iconFullscreenExit.style.display = 'none';
+        }
+      });
+
+      // Theater mode
+      theaterBtn.addEventListener('click', toggleTheaterMode);
+
+      // Auto-hide controls
+      playerContainer.addEventListener('mousemove', () => {
+        showControls();
+      });
+
+      playerContainer.addEventListener('mouseleave', () => {
+        if (playerState.playing) {
+          hideControls();
+        }
+      });
+
+      // Click to play/pause
+      video.addEventListener('click', togglePlayPause);
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        // Don't intercept if typing in input field
+        if (e.target === urlInput || e.target.tagName === 'INPUT') return;
+
+        // Only handle if stream window is active
+        if (!document.getElementById('stream-window').classList.contains('active')) return;
+
+        switch (e.key.toLowerCase()) {
+          case ' ':
+          case 'k':
+            e.preventDefault();
+            togglePlayPause();
+            showControls();
+            break;
+
+          case 'f':
+            e.preventDefault();
+            toggleFullscreen();
+            break;
+
+          case 't':
+            e.preventDefault();
+            toggleTheaterMode();
+            break;
+
+          case 'm':
+            e.preventDefault();
+            toggleMute();
+            showControls();
+            break;
+
+          case 'arrowleft':
+            e.preventDefault();
+            video.currentTime = Math.max(0, video.currentTime - 5);
+            showControls();
+            break;
+
+          case 'arrowright':
+            e.preventDefault();
+            video.currentTime = Math.min(video.duration, video.currentTime + 5);
+            showControls();
+            break;
+
+          case 'j':
+            e.preventDefault();
+            video.currentTime = Math.max(0, video.currentTime - 10);
+            showControls();
+            break;
+
+          case 'l':
+            e.preventDefault();
+            video.currentTime = Math.min(video.duration, video.currentTime + 10);
+            showControls();
+            break;
+
+          case 'arrowup':
+            e.preventDefault();
+            updateVolume(playerState.volume + 5);
+            showControls();
+            break;
+
+          case 'arrowdown':
+            e.preventDefault();
+            updateVolume(playerState.volume - 5);
+            showControls();
+            break;
+
+          case '>':
+            if (e.shiftKey) {
+              e.preventDefault();
+              const newSpeed = Math.min(2, video.playbackRate + 0.25);
+              video.playbackRate = newSpeed;
+              speedSelect.value = newSpeed;
+              showControls();
+            }
+            break;
+
+          case '<':
+            if (e.shiftKey) {
+              e.preventDefault();
+              const newSpeed = Math.max(0.25, video.playbackRate - 0.25);
+              video.playbackRate = newSpeed;
+              speedSelect.value = newSpeed;
+              showControls();
+            }
+            break;
+
+          case '0':
+          case '1':
+          case '2':
+          case '3':
+          case '4':
+          case '5':
+          case '6':
+          case '7':
+          case '8':
+          case '9':
+            e.preventDefault();
+            const percent = parseInt(e.key) * 10;
+            video.currentTime = (percent / 100) * video.duration;
+            showControls();
+            break;
+        }
+      });
+
+      // Initialize
+      showControls();
+      updateVolume(100);
+
+      console.log('✅ Enhanced video player initialized with full controls');
+    }
+
+    function buildDlUrl(useStream = false, trackType = null) {
+      const pageUrl = urlInput.value.trim();
+      const targetUrl = (videoInfo && videoInfo.url) ? videoInfo.url : pageUrl;
+      const qEl = document.getElementById('quality-display');
+      const selectedFormat = qEl ? qEl.value : 'best';
+      const isCustomQuality = selectedFormat !== 'best';
+
+      const endpoint = isCustomQuality ? '/download-quality' : '/download';
+
+      let u = `${getServer()}${endpoint}?url=${encodeURIComponent(targetUrl)}&originalUrl=${encodeURIComponent(pageUrl)}`;
+      if (useStream) u += `&inline=true`;
+      if (isCustomQuality) u += `&format_id=${encodeURIComponent(selectedFormat)}`;
+      if (trackType) u += `&track=${encodeURIComponent(trackType)}`;
+
+      if (videoInfo?.stream) u += `&stream=${encodeURIComponent(videoInfo.stream)}`;
+      if (videoInfo?.streamType) u += `&streamType=${encodeURIComponent(videoInfo.streamType)}`;
+      if (videoInfo?.title) u += `&title=${encodeURIComponent(videoInfo.title)}`;
+      return u;
+    }
+
+
+    function cleanupStream() {
+      const streamVideo = document.getElementById('stream-video');
+      if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+      if (shakaPlayer) { shakaPlayer.destroy(); shakaPlayer = null; }
+      if (window._hlsSessionId) {
+        fetch(`/hls/${window._hlsSessionId}/stop`, { method: 'DELETE' }).catch(() => { });
+        window._hlsSessionId = null;
+      }
+
+      const streamAudio = document.getElementById('stream-audio');
+      if (streamAudio) {
+        streamAudio.pause();
+        streamAudio.removeAttribute('src');
+        streamAudio.load();
+      }
+
+      streamVideo.onplay = null;
+      streamVideo.onpause = null;
+      streamVideo.onseeked = null;
+      streamVideo.ontimeupdate = null;
+      streamVideo.onwaiting = null;
+      streamVideo.onplaying = null;
+
+      streamVideo.pause();
+      streamVideo.removeAttribute('src');
+      streamVideo.load();
+    }
+
+    async function startStream(e, preservedTime = 0, wasPlaying = false) {
+      e?.preventDefault();
+      if (!videoInfo) return;
+
+      const streamWindow = document.getElementById('stream-window');
+      const streamVideo = document.getElementById('stream-video');
+      const statusEl = document.getElementById('stream-video-status');
+
+      cleanupStream();
+
+      streamWindow.classList.add('active');
+      document.getElementById('stream-video-title').textContent = videoInfo.title || 'Stream';
+      document.getElementById('stream-video-source').textContent = (videoInfo.extractor || 'custom').toUpperCase();
+      statusEl.textContent = 'HD LOADING...';
+
+      const qualitySelect = document.getElementById('stream-quality-select');
+      const mainQualitySelect = document.getElementById('quality-display');
+      if (qualitySelect && mainQualitySelect) {
+        qualitySelect.innerHTML = mainQualitySelect.innerHTML;
+        qualitySelect.value = mainQualitySelect.value;
+      }
+
+      const url = urlInput.value.trim();
+      const selectedFormat = mainQualitySelect?.value || 'best';
+
+      let useHls = false;
+      let isDashSplit = false;
+
+      if (videoInfo.source === 'puppeteer') {
+        useHls = videoInfo.streamType === 'm3u8';
+      } else if (selectedFormat !== 'best' && videoInfo.formats && videoInfo.formats.length > 0) {
+        const format = videoInfo.formats.find(f => String(f.format_id) === String(selectedFormat));
+        const proto = (format && format.protocol) ? format.protocol.toLowerCase() : '';
+        const fId = String(selectedFormat).toLowerCase();
+
+        if (proto.includes('m3u8') || fId.includes('hls') || fId.includes('m3u8')) {
+          useHls = true;
+        }
+      } else {
+        if (videoInfo.streamType === 'm3u8' && videoInfo.extractor !== 'youtube') {
+          useHls = true;
+        }
+      }
+
+      console.log('DEBUG: videoInfo:', videoInfo, 'useHls:', useHls);
+
+      try {
+        if (!useHls) {
+          // Direct native stream proxy -> preserves original quality and byte-range seeking
+          let isSplit = false;
+          if (videoInfo.source !== 'puppeteer' && selectedFormat !== 'best' && videoInfo.formats) {
+            const format = videoInfo.formats.find(f => String(f.format_id) === String(selectedFormat));
+            if (format && format.requiresMerge) {
+              isSplit = true;
+            }
+          }
+
+          if (isSplit) {
+            const vUrl = buildDlUrl(true, 'video');
+            const aUrl = buildDlUrl(true, 'audio');
+            console.log('📺 Direct Native Stream (SPLIT):', vUrl, aUrl);
+            streamVideo.src = vUrl;
+            
+            let streamAudio = document.getElementById('stream-audio');
+            if (!streamAudio) {
+              streamAudio = document.createElement('audio');
+              streamAudio.id = 'stream-audio';
+              document.body.appendChild(streamAudio);
+            }
+            streamAudio.src = aUrl;
+
+            // Sync logic
+            streamVideo.addEventListener('play', () => streamAudio.play().catch(()=>{}));
+            streamVideo.addEventListener('pause', () => streamAudio.pause());
+            streamVideo.addEventListener('seeking', () => { streamAudio.currentTime = streamVideo.currentTime; });
+            streamVideo.addEventListener('seeked', () => { streamAudio.currentTime = streamVideo.currentTime; });
+            streamVideo.addEventListener('waiting', () => streamAudio.pause());
+            streamVideo.addEventListener('playing', () => streamAudio.play().catch(()=>{}));
+            streamVideo.addEventListener('ratechange', () => { streamAudio.playbackRate = streamVideo.playbackRate; });
+            
+            // Anti-drift sync
+            streamVideo.addEventListener('timeupdate', () => {
+              if (!streamVideo.paused && Math.abs(streamAudio.currentTime - streamVideo.currentTime) > 0.25) {
+                streamAudio.currentTime = streamVideo.currentTime;
+              }
+            });
+            
+            streamVideo.addEventListener('loadedmetadata', () => {
+              console.log('✅ Split Stream metadata loaded, duration:', streamVideo.duration);
+              statusEl.textContent = 'STREAMING (SPLIT)';
+              if (preservedTime > 0) {
+                 streamVideo.currentTime = preservedTime;
+                 streamAudio.currentTime = preservedTime;
+              }
+            }, { once: true });
+          } else {
+            const streamUrl = buildDlUrl(true);
+            console.log('📺 Direct Native Stream URL:', streamUrl);
+            streamVideo.src = streamUrl;
+
+            streamVideo.addEventListener('loadedmetadata', () => {
+              console.log('✅ Stream metadata loaded, duration:', streamVideo.duration);
+              statusEl.textContent = 'STREAMING (DIRECT)';
+              if (preservedTime > 0) streamVideo.currentTime = preservedTime;
+            }, { once: true });
+          }
+
+          streamVideo.addEventListener('canplay', () => {
+            if (wasPlaying) {
+              streamVideo.play().catch(err => {
+                if (err.name !== 'AbortError') statusEl.textContent = 'CLICK TO PLAY';
+              });
+            } else {
+              statusEl.textContent = 'CLICK TO PLAY';
+            }
+          }, { once: true });
+
+          streamVideo.addEventListener('error', () => {
+            statusEl.textContent = 'ERROR: ' + (streamVideo.error?.message || 'Unknown stream error');
+          }, { once: true });
+
+          return;
+        }
+
+        let m3u8Url = videoInfo.stream || videoInfo.url;
+
+        if (selectedFormat !== 'best' && videoInfo.formats) {
+          const format = videoInfo.formats.find(f => String(f.format_id) === String(selectedFormat));
+          if (format && format.url) {
+            m3u8Url = format.url;
+          }
+        }
+
+        if (!m3u8Url) throw new Error('Could not determine HLS manifest URL');
+
+        const playlistUrl = `/m3u8-proxy?url=${encodeURIComponent(m3u8Url)}&originalUrl=${encodeURIComponent(urlInput.value.trim())}`;
+        console.log('▶️ Loading Native HLS playlist proxy:', playlistUrl);
+
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 90,
+            maxBufferLength: 60,
+            startLevel: -1,
+          });
+
+          hlsInstance.loadSource(playlistUrl);
+          hlsInstance.attachMedia(streamVideo);
+
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+            console.log('✅ HLS manifest parsed — seeking enabled!');
+            statusEl.textContent = 'STREAMING (HLS)';
+
+            // Auto-select highest quality if user selected "BEST"
+            const mainQualitySelect = document.getElementById('quality-display');
+            if (mainQualitySelect && mainQualitySelect.value === 'best' && data.levels.length > 0) {
+              const maxLevel = data.levels.length - 1;
+              hlsInstance.currentLevel = maxLevel;
+              const qEl = document.getElementById('stream-quality-select');
+              if (qEl) qEl.value = maxLevel;
+              statusEl.textContent = `STREAMING (${data.levels[maxLevel].height}p)`;
+            }
+
+            streamVideo.play().catch(err => {
+              if (err.name !== 'AbortError') {
+                statusEl.textContent = 'CLICK TO PLAY';
+              }
+            });
+          });
+
+          hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              console.error('❌ HLS fatal error:', data.type, data.details);
+              statusEl.textContent = 'HLS ERROR: ' + data.details;
+            }
+          });
+
+        } else if (streamVideo.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          streamVideo.src = playlistUrl;
+          streamVideo.play().catch(() => { });
+          statusEl.textContent = 'STREAMING (Native HLS)';
+        } else {
+          throw new Error('HLS not supported in this browser');
+        }
+
+      } catch (err) {
+        console.error('❌ Stream error:', err);
+        statusEl.textContent = 'ERROR: ' + err.message;
+      }
+    }
+
+
+    function isCookieDependent(urlStr) {
+      try {
+        const h = new URL(urlStr).hostname.toLowerCase().replace('www.', '');
+        // Use server config if loaded, else fall back to basic list
+        const domains = serverConfig.cookieDomains.length > 0
+          ? serverConfig.cookieDomains
+          : ['pornhub', 'xvideos', 'spankbang', 'xhamster', 'nuvid', 'xnxx', 'redtube', 'tube8'];
+        return domains.some(d => h.includes(d.replace('www.', '')));
+      } catch (e) { return false; }
+    }
+
+    function startHlsStream(m3u8Url, isCookieProtected) {
+      const streamVideo = document.getElementById('stream-video');
+
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          abrEwmaDefaultEstimate: 5000000,
+          startLevel: -1,
+        });
+
+        const finalUrl = isCookieProtected
+          ? `${getServer()}/hls-proxy?url=${encodeURIComponent(m3u8Url)}`
+          : m3u8Url;
+
+        hlsInstance.loadSource(finalUrl);
+        hlsInstance.attachMedia(streamVideo);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+          console.log('HLS manifest parsed, levels:', data.levels.length);
+          document.getElementById('stream-video-status').textContent = 'STREAMING';
+
+          const qEl = document.getElementById('stream-quality-select');
+          if (qEl) {
+            qEl.innerHTML = '<option value="-1">▲ AUTO QUALITY (ABR)</option>';
+            data.levels.forEach((level, idx) => {
+              const opt = document.createElement('option');
+              opt.value = idx;
+              opt.textContent = `▶ ${level.height}p ${level.bitrate ? Math.round(level.bitrate / 1000) + 'k' : ''}`;
+              qEl.appendChild(opt);
+            });
+            qEl.onchange = (e) => {
+              hlsInstance.currentLevel = parseInt(e.target.value);
+            };
+          }
+
+          streamVideo.play().catch(e => console.error(e));
+        });
+
+        hlsInstance.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+          console.log('HLS quality switched to level:', data.level);
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hlsInstance.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hlsInstance.recoverMediaError();
+            } else {
+              document.getElementById('stream-video-status').textContent = 'FATAL HLS ERROR';
+            }
+          }
+        });
+      } else if (streamVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        streamVideo.src = m3u8Url;
+        streamVideo.play().catch(e => console.error(e));
+      }
+    }
+
+    async function startDashStream(mpdUrl) {
+      const streamVideo = document.getElementById('stream-video');
+
+      shaka.polyfill.installAll();
+      if (shaka.Player.isBrowserSupported()) {
+        shakaPlayer = new shaka.Player(streamVideo);
+
+        shakaPlayer.addEventListener('error', (event) => {
+          console.error('Shaka Error:', event.detail);
+          document.getElementById('stream-video-status').textContent = 'DASH ERROR';
+        });
+
+        try {
+          await shakaPlayer.load(mpdUrl);
+          console.log('DASH manifest loaded!');
+          document.getElementById('stream-video-status').textContent = 'STREAMING';
+          streamVideo.play().catch(e => console.error(e));
+
+          // Populate qualities if available
+          const tracks = shakaPlayer.getVariantTracks();
+          const qEl = document.getElementById('stream-quality-select');
+          if (qEl && tracks.length > 0) {
+            qEl.innerHTML = '<option value="-1">▲ AUTO QUALITY (ABR)</option>';
+            tracks.forEach((t) => {
+              const opt = document.createElement('option');
+              opt.value = t.id;
+              opt.textContent = `▶ ${t.height}p ${Math.round(t.bandwidth / 1000)}k`;
+              qEl.appendChild(opt);
+            });
+            qEl.onchange = (e) => {
+              const trackId = parseInt(e.target.value);
+              if (trackId === -1) {
+                shakaPlayer.configure({ abr: { enabled: true } });
+              } else {
+                shakaPlayer.configure({ abr: { enabled: false } });
+                const track = shakaPlayer.getVariantTracks().find(t => t.id === trackId);
+                if (track) shakaPlayer.selectVariantTrack(track, true);
+              }
+            };
+          }
+        } catch (e) {
+          console.error('Error loading DASH:', e);
+          document.getElementById('stream-video-status').textContent = 'DASH LOAD ERROR';
+        }
+      } else {
+        document.getElementById('stream-video-status').textContent = 'BROWSER DASH NOT SUPPORTED';
+      }
+    }
+
+    function closeStream() {
+      const streamWindow = document.getElementById('stream-window');
+      const streamVideo = document.getElementById('stream-video');
+
+      if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+      if (shakaPlayer) { shakaPlayer.destroy(); shakaPlayer = null; }
+
+      // Tell server to delete HLS temp files
+      if (window._hlsSessionId) {
+        fetch(`/hls/${window._hlsSessionId}/stop`, { method: 'DELETE' }).catch(() => { });
+        window._hlsSessionId = null;
+      }
+
+      streamVideo.pause();
+      streamVideo.removeAttribute('src');
+      streamVideo.load();
+      streamWindow.classList.remove('active');
+    }
+
+    /* ── WARP DOWNLOAD (keeping original) ──────────────────────────── */
+    function buildWarpLines() {
+      const tunnel = document.getElementById('warp-tunnel');
+      tunnel.innerHTML = '';
+      const CX = window.innerWidth / 2;
+      const CY = window.innerHeight / 2;
+
+      for (let i = 0; i < 60; i++) {
+        const angle = (i / 60) * 360;
+        const len = 120 + Math.random() * 200;
+        const line = document.createElement('div');
+        line.className = 'warp-line';
+
+        const rad = (angle * Math.PI) / 180;
+        const x = CX + Math.cos(rad) * (window.innerWidth * 0.5);
+        const y = CY + Math.sin(rad) * (window.innerHeight * 0.5);
+
+        line.style.cssText = `
+          left: ${x}px;
+          top: ${y}px;
+          height: ${len}px;
+          transform: rotate(${angle + 90}deg);
+          transform-origin: top center;
+          animation-delay: ${Math.random() * 1.2}s;
+          animation-duration: ${0.8 + Math.random() * 0.8}s;
+          opacity: 0;
+        `;
+        tunnel.appendChild(line);
+      }
+    }
+
+    function addTermLine(html, cls = 'sys') {
+      const out = document.getElementById('terminal-output');
+      const p = document.createElement('p');
+      p.className = `term-line ${cls}`;
+      p.innerHTML = html;
+      out.appendChild(p);
+      if (out.children.length > 8) out.removeChild(out.firstChild);
+    }
+
+    function startTermClock() {
+      termSeconds = 0;
+      clearInterval(termClockInterval);
+      termClockInterval = setInterval(() => {
+        termSeconds++;
+        const m = String(Math.floor(termSeconds / 60)).padStart(2, '0');
+        const s = String(termSeconds % 60).padStart(2, '0');
+        document.getElementById('term-clock').textContent = `${m}:${s}`;
+      }, 1000);
+    }
+
+    function startTerminal() {
+      document.getElementById('terminal-output').innerHTML = '';
+      clearInterval(terminalInterval);
+      clearInterval(fakeDownloadTimer);
+      clearInterval(downloadPoller);
+
+      startTermClock();
+
+      document.getElementById('download-fill').style.width = '0%';
+      document.getElementById('download-percent').textContent = '0%';
+      document.getElementById('metric-speed').textContent = '-- MB/s';
+      document.getElementById('metric-size').textContent = '0 MB';
+      document.getElementById('metric-frames').textContent = '0';
+      document.getElementById('metric-state').textContent = 'BOOT';
+      document.getElementById('download-phase').textContent = 'CONNECTING TO STREAM NODE...';
+
+      const messages = [
+        ['[XDOWN] Initializing orbital transfer tunnel...', 'sys'],
+        ['[yt-dlp] Extracting adaptive manifests...', 'hi'],
+        ['[SERVER] Chromium interception attached', 'sys'],
+        ['[FFmpeg] Pipe mode: frag_keyframe + empty_moov', 'hi'],
+        ['[MUX] MP4 live fragmentation enabled', 'sys'],
+        ['[PIPE] Waiting for live backend telemetry...', 'warn'],
+      ];
+
+      messages.forEach((msg, i) => {
+        setTimeout(() => addTermLine(msg[0], msg[1]), i * 450);
+      });
+    }
+
+    function stopTerminal(finalData = {}) {
+      clearInterval(terminalInterval);
+      clearInterval(termClockInterval);
+      clearInterval(fakeDownloadTimer);
+      clearInterval(downloadPoller);
+
+      document.getElementById('download-fill').style.width = '100%';
+      document.getElementById('download-percent').textContent = '100%';
+      document.getElementById('metric-state').textContent = 'DONE';
+      document.getElementById('download-phase').textContent = 'DOWNLOAD COMPLETE';
+
+      if (finalData.size) {
+        document.getElementById('metric-size').textContent = finalData.size;
+      }
+
+      addTermLine('[PIPE] Browser accepted binary stream', 'hi');
+      addTermLine('[FFmpeg] Final fragment committed successfully', 'ok');
+      addTermLine('[BROWSER] Native Chrome download manager confirmed', 'ok');
+      addTermLine('✅ DOWNLOAD PIPELINE COMPLETE', 'ok');
+    }
+
+    async function startWarpDownload(e) {
+      e.preventDefault();
+      if (!videoInfo) return;
+      // Hide the resume banner if visible
+      const resumeBanner = document.getElementById('resume-banner');
+      if (resumeBanner) resumeBanner.remove();
+      // Mark that a download is actively running (survives refresh)
+      sessionStorage.setItem('xdown_downloading', '1');
+
+      // 🛑 Clear any active background pre-buffer to avoid downloading twice!
+      const streamVideo = document.getElementById('stream-video');
+      if (streamVideo && streamVideo.src) {
+        console.log('🛑 Killing background pre-buffer before download');
+        streamVideo.pause();
+        streamVideo.removeAttribute('src');
+        streamVideo.load();
+      }
+
+      const hud = document.getElementById('warp-hud');
+      const core = document.getElementById('reactor-core');
+
+      hud.classList.add('active');
+      core.classList.remove('success');
+      document.getElementById('warp-close').classList.remove('visible');
+
+      const unloadGuard = (e) => {
+        e.preventDefault();
+        e.returnValue = 'Download in progress. Leave?';
+        return e.returnValue;
+      };
+      window.addEventListener('beforeunload', unloadGuard);
+
+      buildWarpLines();
+      startTerminal();
+
+      try {
+        document.getElementById('metric-state').textContent = 'PREP';
+        document.getElementById('download-phase').textContent = 'REQUESTING FILE HANDLE...';
+
+        const fileName = `${(videoInfo.title || 'xdown_video').replace(/[\\/:*?"<>|]/g, '_')}.mp4`;
+
+        let writable = null;
+        let fallbackMode = false;
+        let fileHandle = null;
+
+        if ('showSaveFilePicker' in window) {
+          try {
+            addTermLine('[FS] Waiting for native browser save permission...', 'hi');
+
+            fileHandle = await window.showSaveFilePicker({
+              suggestedName: fileName,
+              types: [{
+                description: 'Video File',
+                accept: { 'video/mp4': ['.mp4'] }
+              }]
+            });
+
+            writable = await fileHandle.createWritable();
+            addTermLine('[FS] Native filesystem access granted', 'ok');
+            addTermLine('[PIPE] Direct-to-disk stream initialized', 'ok');
+
+          } catch (fsErr) {
+            if (fsErr.name === 'AbortError') {
+              addTermLine('[FS] User cancelled file save dialog', 'warn');
+            } else {
+              addTermLine(`[FS] Error: ${fsErr.message}`, 'warn');
+            }
+            fallbackMode = true;
+          }
+        } else {
+          fallbackMode = true;
+          addTermLine('[WARN] Browser missing File System Access API', 'warn');
+        }
+
+        if (fallbackMode) {
+          // ⚠️ Don't use href navigation — it unloads the page and causes an infinite reload loop.
+          // Instead, fetch the stream ourselves and create a blob URL for download.
+          addTermLine('[WARN] FS API unavailable — streaming to blob then triggering save...', 'hi');
+          sessionStorage.removeItem('xdown_downloading'); // clear flag before anything async
+          try {
+            const dlUrl = buildDlUrl(false);
+            const blobRes = await fetch(dlUrl, { cache: 'no-store' });
+            if (!blobRes.ok) throw new Error('Blob fetch failed: ' + blobRes.status);
+
+            const contentLength = Number(blobRes.headers.get('Content-Length')) || 0;
+            if (contentLength > 500 * 1024 * 1024) {
+              throw new Error(`File too large (${(contentLength / 1024 / 1024).toFixed(0)}MB) for RAM buffering. Use Chrome/Edge desktop for large files.`);
+            }
+
+            const blobReader = blobRes.body.getReader();
+            const chunks = [];
+            let blobReceived = 0;
+            while (true) {
+              const { done, value } = await blobReader.read();
+              if (done) break;
+              chunks.push(value);
+              blobReceived += value.length;
+              const mb = (blobReceived / 1024 / 1024).toFixed(1);
+              requestAnimationFrame(() => {
+                document.getElementById('download-phase').textContent = `BUFFERING ${mb} MB...`;
+                document.getElementById('metric-size').textContent = mb + ' MB';
+              });
+            }
+            const blob = new Blob(chunks, { type: 'video/mp4' });
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = fileName;
+            a.target = '_blank';
+            document.body.appendChild(a);
+
+            const evt = new MouseEvent('click', {
+              bubbles: false,
+              cancelable: false,
+              view: window
+            });
+            a.dispatchEvent(evt);
+
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            addTermLine('[BROWSER] Blob download triggered successfully', 'ok');
+          } catch (blobErr) {
+            addTermLine(`[ERROR] Blob fallback failed: ${blobErr.message}`, 'warn');
+          }
+          stopTerminal({ size: 'Unknown' });
+          core.classList.add('success');
+          setTimeout(() => { document.getElementById('warp-close').classList.add('visible'); }, 1200);
+          return;
+        }
+
+        document.getElementById('metric-state').textContent = 'LINK';
+        document.getElementById('download-phase').textContent = 'CONNECTING TO STREAM NODE...';
+
+        addTermLine('[LINK] Requesting backend download stream...', 'hi');
+
+        const response = await fetch(buildDlUrl(false), { method: 'GET', cache: 'no-store' });
+
+        if (!response.ok) {
+          throw new Error('Backend stream failed');
+        }
+
+        addTermLine('[SERVER] Live byte stream opened', 'ok');
+
+        const total = Number(response.headers.get('Content-Length')) || 0;
+        addTermLine('[NET] Backend socket locked · awaiting binary chunks', 'hi');
+
+        document.getElementById('metric-state').textContent = 'WRITE';
+        document.getElementById('download-phase').textContent = 'STREAMING DIRECTLY TO DISK...';
+
+        addTermLine('[PIPE] Live chunks flowing directly into browser disk writer', 'ok');
+
+        const reader = response.body.getReader();
+        let received = 0;
+        let frameCount = 0;
+        const startTime = Date.now();
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            if (received === 0) {
+              addTermLine(`[STREAM] First binary chunk received · ${value.length} bytes`, 'ok');
+              document.getElementById('metric-state').textContent = 'LIVE';
+            }
+
+            received += value.length;
+            frameCount += Math.floor(value.length / 12000);
+
+            const elapsed = (Date.now() - startTime) / 1000;
+            const speed = elapsed > 0 ? (received / 1024 / 1024 / elapsed) : 0;
+            const mb = received / 1024 / 1024;
+
+            const progressPercent = total > 0
+              ? Math.min(100, (received / total) * 100)
+              : Math.min(95, Math.max(2, frameCount / 1.5));
+
+            requestAnimationFrame(() => {
+              document.getElementById('download-fill').style.width = `${progressPercent}%`;
+              document.getElementById('download-percent').textContent = `${Math.floor(progressPercent)}%`;
+              document.getElementById('metric-speed').textContent = `${speed.toFixed(1)} MB/s`;
+              document.getElementById('metric-size').textContent = `${mb.toFixed(1)} MB`;
+              document.getElementById('metric-frames').textContent = frameCount.toLocaleString();
+              document.getElementById('download-phase').textContent = total > 0
+                ? `STREAMING ${(received / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB`
+                : `LIVE FRAGMENT PIPE · ${frameCount} FRAGS`;
+            });
+
+            if (frameCount % 6 === 0) {
+              addTermLine(
+                `[STREAM] ${mb.toFixed(1)}MB @ ${speed.toFixed(1)}MB/s | chunk=${value.length}`,
+                speed > 5 ? 'ok' : 'sys'
+              );
+            }
+
+            await writable.write(value);
+          }
+
+          await writable.close();
+        } catch (err) {
+          if (writable) {
+            try { await writable.abort(); } catch { }
+          }
+          throw err;
+        }
+
+        if (total > 0 && received < total) {
+          throw new Error('STREAM_INTERRUPTED_OR_EXPIRED');
+        }
+
+        addTermLine('[DISK] Stream finalized successfully', 'ok');
+        // Download succeeded — clear the pending-download flag
+        sessionStorage.removeItem('xdown_downloading');
+
+        stopTerminal({
+          size: document.getElementById('metric-size').textContent
+        });
+
+        core.classList.add('success');
+
+        setTimeout(() => {
+          document.getElementById('warp-close').classList.add('visible');
+        }, 1200);
+
+      } catch (err) {
+        console.error(err);
+        // Download failed — clear the pending-download flag so we don't loop
+        sessionStorage.removeItem('xdown_downloading');
+
+        document.getElementById('metric-state').textContent = 'ERROR';
+        document.getElementById('download-phase').textContent = 'TRANSFER FAILED';
+
+        addTermLine(`[ERROR] ${err.message}`, 'warn');
+
+        if (err.message === 'STREAM_INTERRUPTED_OR_EXPIRED') {
+          addTermLine(`[PIPE] Connection dropped mid-stream (Token expired or rate-limited)`, 'warn');
+          addTermLine(`[AUTO-FIX] Close this panel and click Download again to get a fresh link.`, 'hi');
+        } else {
+          addTermLine('[PIPE] Stream collapsed before completion', 'warn');
+        }
+
+        document.getElementById('warp-close').classList.add('visible');
+      } finally {
+        window.removeEventListener('beforeunload', unloadGuard);
+      }
+    }
+
+    function closeWarp() {
+      document.getElementById('warp-hud').classList.remove('active');
+      document.getElementById('terminal-output').innerHTML = '';
+      clearInterval(terminalInterval);
+      clearInterval(termClockInterval);
+      clearInterval(downloadPoller);
+    }
+
+    function reset() {
+      videoInfo = null;
+      clearSession();
+      urlInput.value = '';
+      document.getElementById('result-panel').className = '';
+      document.getElementById('dl-btn').setAttribute('data-disabled', 'true');
+      document.getElementById('stream-btn').setAttribute('data-disabled', 'true');
+      resetDecode();
+      clearInterval(radarBlipTimer);
+      closeWarp();
+      closeStream();
+    }
+
+    // Initialize player once
+    initVideoPlayer();
+  </script>
+</body>
+
+</html>
+import fs from 'fs';
+import path from 'path';
+import express from 'express';
+import cors from 'cors';
+import { spawn } from 'child_process';
+import os from 'os';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { Readable } from 'stream';
+import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
+import { rm } from 'fs/promises';
+import { EventEmitter } from 'events';
+
+const stealth = StealthPlugin();
+stealth.enabledEvasions.delete('chrome.app');
+puppeteer.use(stealth);
+
+// ─── Cross-Platform Binary Locator ────────────────────────────────────────
+function getBinaryPath(binaryName) {
+  const ext = process.platform === 'win32' ? '.exe' : '';
+  const localPath = path.resolve(process.cwd(), 'bin', `${binaryName}${ext}`);
+  return fs.existsSync(localPath) ? localPath : binaryName;
+}
+
+const YTDLP_BIN = getBinaryPath('yt-dlp');
+const FFMPEG_BIN = getBinaryPath('ffmpeg');
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ─── Centralized CONFIG ────────────────────────────────────────────────────
+const CONFIG = {
+  PORT: process.env.XDOWN_PORT || 8000,
+
+  HLS: {
+    SEGMENT_DURATION: 2,
+    MAX_SESSIONS: 10,
+    SESSION_TTL: 30 * 60 * 1000,
+    CLEANUP_INTERVAL: 60 * 1000,
+    READY_SEGMENTS: 3,
+    READY_TIMEOUT: 35000,
+  },
+
+  CACHE: {
+    INFO_MAX_ENTRIES: 50,
+    INFO_TTL: 30 * 60 * 1000,
+    COOKIE_TTL: 5 * 60 * 1000,
+  },
+
+  PUPPETEER: {
+    MAX_CRASH_RESTARTS: 3,
+    CRASH_WINDOW: 60 * 1000,
+    NAV_TIMEOUT: 15000,
+    WAIT_TIMEOUT: 12000,
+  },
+
+  DOWNLOAD: {
+    STALL_TIMEOUT: 30000,
+  },
+
+  // Single source of truth — client fetches this from /config
+  COOKIE_DOMAINS: [
+    'pornhub.com', 'xhamster.com', 'xnxx.com', 'xvideos.com',
+    'youporn.com', 'redtube.com', 'spankbang.com', 'tube8.com',
+    'thisvid.com', 'empflix.com', 'nuvid.com', 'txxx.com',
+    'drtuber.com', 'hardsextube.com', 'porntrex.com', 'hclips.com',
+    'fapster.xxx', 'porn.com', 'beeg.com', 'tubegalore.com',
+    'xfantasy.com', 'fuq.com', 'hdzog.com', 'iceporn.com',
+    'pornoxo.com', 'fux.com', 'vjav.com', 'javmost.com',
+  ],
+
+  USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+
+  AD_DOMAINS: [
+    'trafficjunky.net', 'trafficfactory.biz', 'tsyndicate.com',
+    'exoclick.com', 'adnium.com', 'plugrush.com', 'juicyads.com',
+    'a-ads.com', 'adtng.com', 'mngads.com', 'popads.net',
+    'adnetwork.net', 'tubeads.com', 'xbidder.com',
+    'adspyglass.com', 'doubleverify.com', 'adsafeprotected.com',
+    'moatads.com', 'pornvertiser.com', 'sexad.net', 'porniframe.com',
+    'redmoon-media.com', 'trafficstars.com', 'ero-advertising.com',
+  ],
+};
+
+// ─── LRU Cache ────────────────────────────────────────────────────────────
+class LRUCache {
+  constructor(maxSize, ttl) {
+    this.maxSize = maxSize;
+    this.ttl = ttl;
+    this.cache = new Map();
+  }
+
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) { this.cache.delete(key); return null; }
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+    return entry.value;
+  }
+
+  set(key, value) {
+    if (this.cache.size >= this.maxSize) {
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, { value, expiresAt: Date.now() + this.ttl });
+  }
+
+  delete(key) { this.cache.delete(key); }
+  has(key) { return this.get(key) !== null; }
+  get size() { return this.cache.size; }
+}
+
+const infoCache = new LRUCache(CONFIG.CACHE.INFO_MAX_ENTRIES, CONFIG.CACHE.INFO_TTL);
+
+// ─── Cookie Manager ───────────────────────────────────────────────────────
+class CookieManager {
+  constructor() {
+    this.busy = false;
+    this.cache = null;
+    this.cacheExpiry = 0;
+    this.waiters = [];
+    this.filePath = path.join(os.tmpdir(), 'xdown_cookies_v5.txt');
+  }
+
+  needsCookies(url) {
+    try {
+      const host = new URL(url).hostname.replace('www.', '');
+      return CONFIG.COOKIE_DOMAINS.some(d => host.includes(d.replace('www.', '')));
+    } catch { return false; }
+  }
+
+  async getCookieArgs(url) {
+    if (!this.needsCookies(url)) return [];
+    if (Date.now() < this.cacheExpiry && this.cache) return ['--cookies', this.cache];
+
+    if (this.busy) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Cookie export wait timeout')), 10000);
+        this.waiters.push(() => { clearTimeout(timer); resolve(); });
+      });
+      return this.cache ? ['--cookies', this.cache] : [];
+    }
+
+    this.busy = true;
+    try {
+      await this._exportCookies();
+      this.cacheExpiry = Date.now() + CONFIG.CACHE.COOKIE_TTL;
+      return ['--cookies', this.filePath];
+    } catch (err) {
+      console.error('⚠️ Cookie export failed (continuing without cookies):', err.message);
+      return [];
+    } finally {
+      this.busy = false;
+      const waiters = this.waiters.splice(0);
+      waiters.forEach(r => r());
+    }
+  }
+
+  _exportCookies(browser = 'chrome') {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(YTDLP_BIN, [
+        '--cookies-from-browser', browser,
+        '--cookies', this.filePath,
+        '--skip-download', 'about:blank'
+      ]);
+      let errOut = '';
+      proc.stderr.on('data', d => { errOut += d; });
+      proc.on('close', code => {
+        if (code === 0) { this.cache = this.filePath; resolve(); }
+        else reject(new Error(`Cookie export exit ${code}: ${errOut.slice(0, 200)}`));
+      });
+      proc.on('error', reject);
+      const killTimer = setTimeout(() => {
+        proc.kill('SIGKILL');
+        reject(new Error('Cookie export process timed out'));
+      }, 15000);
+      proc.on('close', () => clearTimeout(killTimer));
+    });
+  }
+
+  async parseCookiesForUrl(url) {
+    if (!this.cache || !fs.existsSync(this.cache)) return '';
+    try {
+      const content = await fs.promises.readFile(this.cache, 'utf8');
+      const targetHost = new URL(url).hostname;
+      return content.split('\n')
+        .filter(l => l && !l.startsWith('#'))
+        .map(l => l.split('\t'))
+        .filter(p => p.length >= 7 && targetHost.includes(p[0].replace(/^\./, '')))
+        .map(p => `${p[5]}=${p[6].trim()}`)
+        .join('; ');
+    } catch { return ''; }
+  }
+}
+
+const cookieManager = new CookieManager();
+
+// ─── Puppeteer Manager ────────────────────────────────────────────────────
+class PuppeteerManager {
+  constructor() {
+    this.browser = null;
+    this.crashCount = 0;
+    this.firstCrashTime = null;
+    this.launching = false;
+    this.launchWaiters = [];
+  }
+
+  async getBrowser() {
+    if (this.browser) {
+      try { await this.browser.pages(); return this.browser; }
+      catch { this._onCrash(); }
+    }
+
+    const now = Date.now();
+    if (this.firstCrashTime && (now - this.firstCrashTime) < CONFIG.PUPPETEER.CRASH_WINDOW) {
+      if (this.crashCount >= CONFIG.PUPPETEER.MAX_CRASH_RESTARTS) {
+        throw new Error(`Puppeteer crash limit reached (${CONFIG.PUPPETEER.MAX_CRASH_RESTARTS} crashes in 60s). Try again later.`);
+      }
+    } else {
+      this.crashCount = 0;
+      this.firstCrashTime = null;
+    }
+
+    if (this.launching) {
+      await new Promise(resolve => this.launchWaiters.push(resolve));
+      return this.browser;
+    }
+
+    this.launching = true;
+    try {
+      console.log('🧠 Launching shared browser...');
+      this.browser = await puppeteer.launch({
+        headless: false,
+        args: [
+          '--no-sandbox', '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage', '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--autoplay-policy=no-user-gesture-required',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-infobars', '--window-size=1366,768',
+          '--memory-pressure-off',
+          '--disable-background-timer-throttling',
+        ],
+        ignoreHTTPSErrors: true,
+        defaultViewport: { width: 1366, height: 768 },
+        protocolTimeout: 30000,
+      });
+      this.browser.on('disconnected', () => this._onCrash());
+      return this.browser;
+    } finally {
+      this.launching = false;
+      this.launchWaiters.forEach(r => r());
+      this.launchWaiters = [];
+    }
+  }
+
+  _onCrash() {
+    this.browser = null;
+    if (!this.firstCrashTime) this.firstCrashTime = Date.now();
+    this.crashCount++;
+    console.warn(`⚠️ Puppeteer crash #${this.crashCount}`);
+  }
+}
+
+const puppeteerManager = new PuppeteerManager();
+
+// ─── HLS Session Manager ──────────────────────────────────────────────────
+class HLSSessionManager {
+  constructor() {
+    this.sessions = new Map();
+    this.emitter = new EventEmitter();
+    this.emitter.setMaxListeners(200);
+    setInterval(() => this._cleanup(), CONFIG.HLS.CLEANUP_INTERVAL);
+  }
+
+  async createSession(videoUrl, audioUrl, httpHeaders, originalUrl, videoInfo) {
+    if (this.sessions.size >= CONFIG.HLS.MAX_SESSIONS) this._evictOldest();
+
+    const sessionId = randomUUID();
+    const dir = path.join(os.tmpdir(), `xdown_hls_${sessionId}`);
+    await fs.promises.mkdir(dir, { recursive: true });
+
+    const session = {
+      id: sessionId,
+      dir,
+      ffmpegProcess: null,
+      createdAt: Date.now(),
+      lastAccessed: Date.now(),
+      status: 'starting',
+      segmentCount: 0,
+      error: null,
+      videoInfo: { title: videoInfo?.title || 'Video', duration: videoInfo?.duration || 0 },
+      playlistPath: path.join(dir, 'playlist.m3u8'),
+    };
+
+    this.sessions.set(sessionId, session);
+    this._startFFmpeg(sessionId, videoUrl, audioUrl, httpHeaders, originalUrl);
+    return sessionId;
+  }
+
+  _startFFmpeg(sessionId, videoUrl, audioUrl, httpHeaders, originalUrl) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    let origin = '';
+    try { origin = new URL(originalUrl || videoUrl).origin + '/'; } catch { }
+
+    let ffHeaders = origin ? `Referer: ${origin}\r\n` : '';
+    let userAgent = CONFIG.USER_AGENT;
+
+    if (httpHeaders) {
+      for (const [k, v] of Object.entries(httpHeaders)) {
+        if (k.toLowerCase() === 'user-agent') userAgent = v;
+        else ffHeaders += `${k}: ${v}\r\n`;
+      }
+    }
+
+    const segmentPattern = path.join(session.dir, 'seg%05d.m4s');
+    const playlistPath = session.playlistPath;
+
+    const ffArgs = [
+      '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
+      '-rw_timeout', '30000000',
+      '-user_agent', userAgent,
+      ...(ffHeaders ? ['-headers', ffHeaders] : []),
+      '-i', videoUrl,
+    ];
+
+    if (audioUrl) {
+      ffArgs.push(
+        '-user_agent', userAgent,
+        ...(ffHeaders ? ['-headers', ffHeaders] : []),
+        '-i', audioUrl
+      );
+    }
+
+    ffArgs.push(
+      '-map', '0:v:0?',
+      ...(audioUrl ? ['-map', '1:a:0?'] : ['-map', '0:a:0?']),
+      // Re-encode video for accurate keyframes (required for seeking)
+      '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast',
+      '-c:a', 'aac', '-b:a', '192k', '-ac', '2',
+      '-bsf:a', 'aac_adtstoasc',
+      // Force keyframe every segment for frame-accurate seeking
+      '-force_key_frames', `expr:gte(t,n_forced*${CONFIG.HLS.SEGMENT_DURATION})`,
+      '-f', 'hls',
+      '-hls_time', String(CONFIG.HLS.SEGMENT_DURATION),
+      '-hls_segment_type', 'fmp4',
+      '-hls_segment_filename', segmentPattern,
+      '-hls_playlist_type', 'event',
+      '-hls_list_size', '0',
+      '-hls_flags', 'independent_segments+append_list',
+      '-hls_fmp4_init_filename', 'init.mp4',
+      playlistPath,
+    );
+
+    console.log(`🎞️ HLS Session ${sessionId.slice(0, 8)} — Starting FFmpeg`);
+
+    const ffmpeg = spawn(FFMPEG_BIN, ffArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
+    session.ffmpegProcess = ffmpeg;
+    session.status = 'processing';
+    console.log(`   FFmpeg PID: ${ffmpeg.pid}`);
+
+    let lastSegCount = 0;
+    let lastSegTime = Date.now();
+    let ffmpegErrLog = '';
+
+    // Stall watchdog
+    const stallWatcher = setInterval(async () => {
+      if (!this.sessions.has(sessionId)) { clearInterval(stallWatcher); return; }
+      const s = this.sessions.get(sessionId);
+      if (s.status === 'complete' || s.status === 'error') { clearInterval(stallWatcher); return; }
+      try {
+        const files = await fs.promises.readdir(session.dir);
+        const segCount = files.filter(f => f.endsWith('.m4s')).length;
+        if (segCount > lastSegCount) { lastSegCount = segCount; lastSegTime = Date.now(); }
+        else if (Date.now() - lastSegTime > CONFIG.DOWNLOAD.STALL_TIMEOUT && s.status === 'processing') {
+          console.warn(`⚠️ HLS Session ${sessionId.slice(0, 8)} stalled — killing`);
+          s.status = 'error'; s.error = 'Stream stalled (no new segments for 30s)';
+          ffmpeg.kill('SIGKILL');
+          clearInterval(stallWatcher);
+          this.emitter.emit(`error:${sessionId}`, s.error);
+        }
+      } catch { }
+    }, 5000);
+
+    ffmpeg.stderr.on('data', d => { ffmpegErrLog += d.toString(); });
+
+    this._watchForReady(sessionId);
+
+    ffmpeg.on('close', async code => {
+      clearInterval(stallWatcher);
+      const s = this.sessions.get(sessionId);
+      if (!s) return;
+      if (code === 0 || code === null) {
+        s.status = 'complete';
+        console.log(`✅ HLS Session ${sessionId.slice(0, 8)} — FFmpeg complete`);
+        this.emitter.emit(`complete:${sessionId}`);
+      } else if (s.status !== 'error') {
+        s.status = 'error';
+        s.error = `FFmpeg exited with code ${code}`;
+        console.error(`❌ HLS ${sessionId.slice(0, 8)} — ${s.error}`);
+        this.emitter.emit(`error:${sessionId}`, s.error);
+      }
+    });
+
+    ffmpeg.on('error', err => {
+      clearInterval(stallWatcher);
+      const s = this.sessions.get(sessionId);
+      if (s) { s.status = 'error'; s.error = err.message; }
+      this.emitter.emit(`error:${sessionId}`, err.message);
+    });
+  }
+
+  async _watchForReady(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    let attempts = 0;
+    const maxAttempts = 80;
+
+    const check = async () => {
+      if (!this.sessions.has(sessionId)) return;
+      const s = this.sessions.get(sessionId);
+      if (s.status === 'error') return;
+
+      try {
+        if (fs.existsSync(s.playlistPath)) {
+          const content = await fs.promises.readFile(s.playlistPath, 'utf8');
+          const segLines = content.split('\n').filter(l => l.endsWith('.m4s'));
+          if (segLines.length >= CONFIG.HLS.READY_SEGMENTS) {
+            s.status = 'ready';
+            s.segmentCount = segLines.length;
+            console.log(`✅ HLS Session ${sessionId.slice(0, 8)} — Ready (${segLines.length} segments)`);
+            this.emitter.emit(`ready:${sessionId}`);
+            return;
+          }
+        }
+      } catch { }
+
+      attempts++;
+      if (attempts < maxAttempts) setTimeout(check, 500);
+    };
+
+    setTimeout(check, 500);
+  }
+
+  waitForReady(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return Promise.reject(new Error('Session not found'));
+    if (session.status === 'ready' || session.status === 'complete') return Promise.resolve(true);
+    if (session.status === 'error') return Promise.reject(new Error(session.error));
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('HLS session timed out waiting for first segments')), CONFIG.HLS.READY_TIMEOUT);
+      const cleanup = () => clearTimeout(timeout);
+      this.emitter.once(`ready:${sessionId}`, () => { cleanup(); resolve(true); });
+      this.emitter.once(`complete:${sessionId}`, () => { cleanup(); resolve(true); });
+      this.emitter.once(`error:${sessionId}`, err => { cleanup(); reject(new Error(err)); });
+    });
+  }
+
+  getSession(sessionId) {
+    const s = this.sessions.get(sessionId);
+    if (s) s.lastAccessed = Date.now();
+    return s;
+  }
+
+  async deleteSession(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    try { if (session.ffmpegProcess) session.ffmpegProcess.kill('SIGKILL'); } catch { }
+    try { await rm(session.dir, { recursive: true, force: true }); console.log(`🗑️ HLS Session ${sessionId.slice(0, 8)} — Cleaned up`); } catch { }
+    this.sessions.delete(sessionId);
+    this.emitter.removeAllListeners(`ready:${sessionId}`);
+    this.emitter.removeAllListeners(`error:${sessionId}`);
+    this.emitter.removeAllListeners(`complete:${sessionId}`);
+  }
+
+  _evictOldest() {
+    let oldest = null, oldestTime = Infinity;
+    for (const [id, s] of this.sessions) {
+      if (s.lastAccessed < oldestTime) { oldestTime = s.lastAccessed; oldest = id; }
+    }
+    if (oldest) { console.log(`♻️ Evicting oldest HLS session: ${oldest.slice(0, 8)}`); this.deleteSession(oldest); }
+  }
+
+  async _cleanup() {
+    const now = Date.now();
+    for (const [id, s] of this.sessions) {
+      if (now - s.lastAccessed > CONFIG.HLS.SESSION_TTL) {
+        console.log(`♻️ Expiring inactive HLS session: ${id.slice(0, 8)}`);
+        await this.deleteSession(id);
+      }
+    }
+  }
+}
+
+const hlsManager = new HLSSessionManager();
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function safeFilename(name = 'video') {
+  return name.replace(/[^\w\s\-().]/g, '').replace(/\s+/g, '_').slice(0, 100);
+}
+
+function scoreUrl(url, pageOrigin) {
+  try {
+    const u = new URL(url);
+    let score = 0;
+
+    if (CONFIG.AD_DOMAINS.some(d => u.hostname.includes(d))) return -Infinity;
+    if (/\/(ads?|preroll|vast|midroll|banner|tracking)\//i.test(u.pathname)) return -Infinity;
+    if (/blank\.mp4|preview|thumb|icon|logo/i.test(u.pathname)) return -Infinity;
+
+    try {
+      const pageHost = new URL(pageOrigin).hostname.split('.').slice(-2).join('.');
+      if (u.hostname.includes(pageHost)) score += 5000;
+    } catch { }
+
+    score += Math.min(url.length, 200);
+    if (url.includes('.m3u8')) score += 1000;
+    if (url.includes('master')) score += 500;
+
+    return score;
+  } catch { return -Infinity; }
+}
+
+function resolveBestQualityUrl(url) {
+  if (!url.includes('_TPL_')) return url;
+  const pMatches = [...url.matchAll(/:(\d+p):/g)].map(m => m[1]);
+  if (pMatches.length) {
+    const best = pMatches.sort((a, b) => parseInt(b) - parseInt(a))[0];
+    return url.replace('_TPL_', best);
+  }
+  const multiMatch = url.match(/multi=([^/]+)/);
+  if (multiMatch) {
+    const qualities = multiMatch[1].split(',').map(s => s.split(':')[0]);
+    if (qualities.length) return url.replace('_TPL_', qualities.sort((a, b) => parseInt(b) - parseInt(a))[0]);
+  }
+  return url.replace('_TPL_', '1080p');
+}
+
+// ─── yt-dlp info ───────────────────────────────────────────────────────────
+async function ytDlpInfo(url, opts = {}) {
+  if (!opts.bypassCache) {
+    const cached = infoCache.get(url);
+    if (cached && !cached.info) { console.log('📋 Cache hit for:', url); return cached; }
+  }
+
+  const cookieArgs = await cookieManager.getCookieArgs(url);
+  const args = [
+    '-J', '--no-warnings', '--no-playlist',
+    '--socket-timeout', '10',
+    '--user-agent', CONFIG.USER_AGENT,
+    ...cookieArgs,
+    url
+  ];
+
+  return new Promise((resolve, reject) => {
+    console.log('🔍 yt-dlp info:', url);
+    const proc = spawn(YTDLP_BIN, args);
+    console.log('🔍 yt-dlp info args:', args.join(' '));
+    console.log('🧠 yt-dlp info PID:', proc.pid);
+    let out = '', err = '';
+    proc.stdout.on('data', d => { out += d; });
+    proc.stderr.on('data', d => { err += d; });
+    proc.on('close', code => {
+      if (code !== 0) return reject(new Error(err || 'yt-dlp info failed'));
+      try {
+        const info = JSON.parse(out);
+        infoCache.set(url, info);
+        resolve(info);
+      } catch { reject(new Error('yt-dlp JSON parse error')); }
+    });
+    proc.on('error', reject);
+  });
+}
+
+// ─── Puppeteer extractor (network-level intercept) ────────────────────────
+async function extractWithPuppeteer(pageUrl) {
+  console.log('🕷️ Puppeteer extracting:', pageUrl);
+
+  const browser = await puppeteerManager.getBrowser();
+  const page = await browser.newPage();
+
+  try {
+    await page.setViewport({ width: 1366, height: 768 });
+    await page.setUserAgent(CONFIG.USER_AGENT);
+    await page.setRequestInterception(true);
+
+    // Inject cookies if needed
+    if (cookieManager.needsCookies(pageUrl) && cookieManager.cache) {
+      try {
+        const cookieStr = await cookieManager.parseCookiesForUrl(pageUrl);
+        if (cookieStr) {
+          const domain = new URL(pageUrl).hostname;
+          const cookiePairs = cookieStr.split('; ').map(pair => {
+            const [name, ...rest] = pair.split('=');
+            return { name: name.trim(), value: rest.join('=').trim(), domain };
+          });
+          await page.setCookie(...cookiePairs.filter(c => c.name && c.value));
+        }
+      } catch { }
+    }
+
+    // Prevent page reload/redirect tricks
+    await page.evaluateOnNewDocument(() => {
+      window.location.reload = function () { };
+      window.location.replace = function () { };
+    });
+
+    const capturedUrls = [];
+
+    // Network-level intercept — catches URLs before they hit the DOM
+    page.on('request', req => {
+      const t = req.resourceType();
+      if (t === 'image' || t === 'font' || t === 'stylesheet') { req.abort(); return; }
+      req.continue();
+    });
+
+    page.on('response', async response => {
+      try {
+        const u = response.url();
+        const ct = response.headers()['content-type'] || '';
+        const isVideoUrl = u.includes('.m3u8') || u.includes('.mpd') || u.includes('.mp4') || u.includes('.webm') || ct.includes('video/');
+        if (!isVideoUrl) return;
+        const score = scoreUrl(u, pageUrl);
+        if (score === -Infinity) return;
+        capturedUrls.push({ url: u, score });
+      } catch { }
+    });
+
+    try { await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: CONFIG.PUPPETEER.NAV_TIMEOUT }); } catch { }
+
+    // Event-driven wait: resolve as soon as a high-confidence URL is found
+    const waitForVideoUrl = new Promise(resolve => {
+      const intervalId = setInterval(() => {
+        const bestSoFar = capturedUrls.sort((a, b) => b.score - a.score)[0];
+        if (bestSoFar && bestSoFar.score > 100) { clearInterval(intervalId); resolve(); }
+      }, 300);
+      // Hard timeout fallback
+      setTimeout(() => { clearInterval(intervalId); resolve(); }, CONFIG.PUPPETEER.WAIT_TIMEOUT);
+    });
+
+    // Try play button
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll('button, .play-button, [class*=play]').forEach(b => { try { b.click(); } catch { } });
+        document.querySelectorAll('video').forEach(v => { try { v.play(); } catch { } });
+      });
+    } catch { }
+
+    await waitForVideoUrl;
+
+    // Also scan DOM as backup
+    const frames = page.frames();
+    console.log(`🖼️ Inspecting ${frames.length} frames...`);
+    for (const frame of frames) {
+      try {
+        const dom = await Promise.race([
+          frame.evaluate((adDomains) => {
+            const junkRegex = new RegExp(adDomains.map(d => d.replace('.', '\\.')).join('|'), 'i');
+            let bestVid = null, bestScore = 0;
+            document.querySelectorAll('video').forEach(v => {
+              let src = v.src || v.currentSrc;
+              if (!src || src.startsWith('blob:')) {
+                const source = v.querySelector('source');
+                if (source) src = source.src;
+              }
+              if (!src || junkRegex.test(src)) return;
+              const area = v.clientWidth * v.clientHeight;
+              const duration = (!isNaN(v.duration) && v.duration > 30) ? v.duration : 0;
+              const score = area + duration * 1000;
+              if (score > bestScore) { bestScore = score; bestVid = src; }
+            });
+            return bestVid;
+          }, CONFIG.AD_DOMAINS),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('frame timeout')), 2000))
+        ]);
+        if (dom) capturedUrls.push({ url: dom, score: 200 });
+      } catch { }
+    }
+
+    const debugImagePath = path.join(os.tmpdir(), 'bot_debug_vision.png');
+    await page.screenshot({ path: debugImagePath, fullPage: true }).catch(() => { });
+    console.log('📸 Debug screenshot saved to:', debugImagePath);
+
+    capturedUrls.sort((a, b) => b.score - a.score);
+    const best = capturedUrls[0];
+    if (!best) throw new Error('No valid video stream found. Blocked by ads or captchas.');
+
+    let finalStream = best.url;
+    if (finalStream.startsWith('/')) {
+      const p = new URL(pageUrl);
+      finalStream = `${p.protocol}//${p.host}${finalStream}`;
+    }
+
+    let streamType = 'mp4';
+    if (finalStream.includes('.m3u8')) streamType = 'm3u8';
+    else if (finalStream.includes('.mpd')) streamType = 'mpd';
+
+    console.log('✅ Puppeteer result:', finalStream);
+
+    let title = 'Video';
+    try { title = await Promise.race([page.title(), new Promise(r => setTimeout(() => r('Video'), 2000))]); } catch { }
+
+    const thumb = await page.evaluate(() => document.querySelector('video')?.poster || '').catch(() => '');
+
+    let cookieStr = '';
+    try {
+      const pageCookies = await page.cookies();
+      cookieStr = pageCookies.map(c => `${c.name}=${c.value}`).join('; ');
+    } catch { }
+
+    return { stream: finalStream, streamType, thumbnail: thumb, title, cookies: cookieStr };
+
+  } finally {
+    try { await page.close(); } catch { }
+  }
+}
+
+// ─── Express app ──────────────────────────────────────────────────────────
+const app = express();
+const PORT = CONFIG.PORT;
+
+app.use(express.static(path.join(__dirname, '../')));
+app.use(cors());
+app.use(express.json());
+
+// Boot logs
+console.log('XDown v5.0 Backend Initialized');
+console.log('🚀 Boot sequence started...');
+console.log('🖥️ Node version:', process.version);
+console.log('📂 Working directory:', process.cwd());
+console.log('🧠 PID:', process.pid);
+console.log('🧵 Platform:', process.platform, process.arch);
+console.log('📦 Binary targets:', { YTDLP_BIN, FFMPEG_BIN });
+
+process.on('exit', code => { console.log(`💀 Process exiting with code ${code}`); });
+process.on('SIGINT', () => { console.log('🛑 SIGINT received'); process.exit(0); });
+process.on('SIGTERM', () => { console.log('🛑 SIGTERM received'); process.exit(0); });
+process.on('uncaughtException', err => { console.error('🔥 Uncaught Exception:', err); });
+process.on('unhandledRejection', err => { console.error('🔥 Unhandled Promise Rejection:', err); });
+
+setInterval(() => {
+  const sessions = hlsManager.sessions.size;
+  const cacheSize = infoCache.size;
+  console.log(`💓 Heartbeat | PID=${process.pid} | ${new Date().toISOString()} | HLS:${sessions} | Cache:${cacheSize}`);
+}, 30000);
+
+// ─── /config ──────────────────────────────────────────────────────────────
+app.get('/config', (req, res) => {
+  res.json({
+    cookieDomains: CONFIG.COOKIE_DOMAINS,
+    adDomains: CONFIG.AD_DOMAINS,
+    hlsSegmentDuration: CONFIG.HLS.SEGMENT_DURATION,
+    version: '5.0.0',
+  });
+});
+
+// ─── /health ──────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  ts: Date.now(),
+  hlsSessions: hlsManager.sessions.size,
+  infoCache: infoCache.size,
+}));
+
+// ─── /info ────────────────────────────────────────────────────────────────
+app.get('/info', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+  console.log('📥 /info:', url);
+  try {
+    const cached = infoCache.get(url);
+    if (cached && cached.info) {
+      return res.json(cached.info);
+    }
+    const info = await ytDlpInfo(url);
+    return res.json({
+      source: 'yt-dlp', extractor: info.extractor || 'unknown',
+      title: info.title || 'Video', uploader: info.uploader || '',
+      duration: info.duration || 0, thumbnail: info.thumbnail || '',
+      views: info.view_count || 0, formats: info.formats?.length || 0,
+      hasAudio: info.formats?.some(f => f.acodec !== 'none') ?? false,
+      hasVideo: info.formats?.some(f => f.vcodec !== 'none') ?? false
+    });
+  } catch (ytErr) {
+    console.log('⚠️ yt-dlp failed, trying Puppeteer...');
+    try {
+      const r = await extractWithPuppeteer(url);
+      const infoObj = {
+        source: 'puppeteer', extractor: 'custom',
+        title: r.title, uploader: '', duration: 0,
+        thumbnail: r.thumbnail, views: 0,
+        stream: r.stream, streamType: r.streamType
+      };
+      infoCache.set(url, {
+        info: { ...infoObj, http_headers: r.cookies ? { 'Cookie': r.cookies } : {} },
+        ts: Date.now()
+      });
+      return res.json(infoObj);
+    } catch (ppErr) {
+      return res.status(500).json({ error: `yt-dlp: ${ytErr.message} | Puppeteer: ${ppErr.message}` });
+    }
+  }
+});
+
+// ─── /info-stream (SSE progress) ──────────────────────────────────────────
+app.get('/info-stream', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (step, status, message, data = {}) =>
+    res.write(`data: ${JSON.stringify({ step, status, message, ...data })}\n\n`);
+
+  try {
+    const cached = infoCache.get(url);
+    if (cached && cached.info) {
+      res.write(`data: ${JSON.stringify({
+        complete: true, source: 'puppeteer',
+        info: cached.info
+      })}\n\n`);
+      return res.end();
+    }
+
+    send(0, 'active', 'Connecting to target...');
+    await new Promise(r => setTimeout(r, 300));
+    send(0, 'done', 'Connection established');
+
+    send(1, 'active', 'Resolving hostname...');
+    const hostname = new URL(url).hostname;
+    await new Promise(r => setTimeout(r, 200));
+    send(1, 'done', hostname);
+
+    send(2, 'active', 'Trying yt-dlp extractor...');
+
+    try {
+      const info = await ytDlpInfo(url);
+      if (info.info) {
+        throw new Error('Using cached Puppeteer result');
+      }
+
+      send(2, 'done', 'yt-dlp successful');
+      send(3, 'active', 'Parsing manifest...');
+      await new Promise(r => setTimeout(r, 300));
+      send(3, 'done', `${info.formats?.length || 0} formats found`);
+
+      send(4, 'active', 'Mapping streams...');
+      await new Promise(r => setTimeout(r, 200));
+      send(4, 'done', 'Stream map ready');
+
+      send(5, 'active', 'Selecting quality...');
+      await new Promise(r => setTimeout(r, 200));
+      send(5, 'done', 'Best quality locked');
+
+      const hasAudioTrack = (info.formats || []).some(f => f.acodec !== 'none');
+      const formatsList = (info.formats || [])
+        .filter(f => f.vcodec !== 'none' && (f.ext === 'mp4' || f.ext === 'webm'))
+        .map(f => ({
+          format_id: f.format_id, ext: f.ext, resolution: f.format,
+          height: f.height || 0, width: f.width || 0, fps: f.fps || 0,
+          vcodec: f.vcodec,
+          acodec: (f.acodec === 'none' && hasAudioTrack) ? 'aac' : f.acodec,
+          requiresMerge: f.acodec === 'none' && hasAudioTrack,
+          filesize: f.filesize || f.filesize_approx || 0,
+          tbr: f.tbr || 0,
+          protocol: f.protocol,
+        }))
+        .sort((a, b) => (b.height || 0) - (a.height || 0));
+
+      const hlsFormat = (info.formats || []).find(f => f.protocol === 'm3u8' || f.protocol === 'm3u8_native');
+      const streamType = hlsFormat ? 'm3u8' : 'mp4';
+      const manifestUrl = hlsFormat?.url || null;
+
+      res.write(`data: ${JSON.stringify({
+        complete: true, source: 'yt-dlp',
+        info: {
+          title: info.title, extractor: info.extractor,
+          thumbnail: info.thumbnail, duration: info.duration,
+          uploader: info.uploader, streamType, stream: manifestUrl, formats: formatsList
+        }
+      })}\n\n`);
+
+    } catch (ytErr) {
+      send(2, 'error', `yt-dlp failed: ${ytErr.message}`);
+      send(2, 'active', 'Switching to Puppeteer...');
+      try {
+        const puppeteerResult = await extractWithPuppeteer(url);
+        send(2, 'done', 'Puppeteer extraction successful');
+        send(3, 'active', 'Analyzing stream...');
+        await new Promise(r => setTimeout(r, 500));
+        send(3, 'done', `${puppeteerResult.streamType.toUpperCase()} stream found`);
+        send(4, 'active', 'Validating stream URL...');
+        await new Promise(r => setTimeout(r, 300));
+        send(4, 'done', 'Stream validated');
+        send(5, 'active', 'Quality check...');
+        await new Promise(r => setTimeout(r, 200));
+        send(5, 'done', 'Best available');
+        const infoObj = {
+          title: puppeteerResult.title, extractor: 'custom',
+          thumbnail: puppeteerResult.thumbnail,
+          stream: puppeteerResult.stream, streamType: puppeteerResult.streamType
+        };
+        res.write(`data: ${JSON.stringify({
+          complete: true, source: 'puppeteer',
+          info: infoObj
+        })}\n\n`);
+
+        infoCache.set(url, {
+          info: { ...infoObj, http_headers: puppeteerResult.cookies ? { 'Cookie': puppeteerResult.cookies } : {} },
+          ts: Date.now()
+        });
+      } catch (ppErr) {
+        send(2, 'error', `Puppeteer also failed: ${ppErr.message}`);
+        res.write(`data: ${JSON.stringify({ complete: true, error: ppErr.message })}\n\n`);
+      }
+    }
+    res.end();
+  } catch (err) {
+    res.write(`data: ${JSON.stringify({ complete: true, error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
+// ─── /hls/start ───────────────────────────────────────────────────────────
+app.post('/hls/start', async (req, res) => {
+  const { url, format_id } = req.body;
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+  console.log('🎞️ /hls/start:', url);
+
+  try {
+    const info = await ytDlpInfo(url);
+    const allFormats = info.formats || [];
+    const httpHeaders = info.http_headers || {};
+
+    let videoUrl, audioUrl, selectedHeaders;
+
+    if (format_id && format_id !== 'best') {
+      const fmt = allFormats.find(f => String(f.format_id) === String(format_id));
+      if (!fmt) return res.status(400).json({ error: 'Format not found' });
+      videoUrl = fmt.url;
+      selectedHeaders = fmt.http_headers || httpHeaders;
+      if (fmt.acodec === 'none') {
+        const bestAudio = allFormats.filter(f => f.acodec !== 'none' && f.vcodec === 'none').sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+        audioUrl = bestAudio?.url || null;
+      }
+    } else {
+      const bestCombined = allFormats
+        .filter(f => f.vcodec !== 'none' && f.acodec !== 'none' && (f.ext === 'mp4' || f.ext === 'webm'))
+        .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+
+      if (bestCombined) {
+        videoUrl = bestCombined.url;
+        selectedHeaders = bestCombined.http_headers || httpHeaders;
+      } else {
+        const bestVideo = allFormats.filter(f => f.vcodec !== 'none' && f.acodec === 'none').sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+        const bestAudio = allFormats.filter(f => f.acodec !== 'none' && f.vcodec === 'none').sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+        if (!bestVideo) return res.status(500).json({ error: 'No streamable video format found' });
+        videoUrl = bestVideo.url;
+        audioUrl = bestAudio?.url || null;
+        selectedHeaders = bestVideo.http_headers || httpHeaders;
+      }
+    }
+
+    const sessionId = await hlsManager.createSession(videoUrl, audioUrl, selectedHeaders, url, { title: info.title, duration: info.duration });
+    res.json({ sessionId, status: 'starting' });
+
+  } catch (err) {
+    console.error('/hls/start error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── /hls/:id/status ──────────────────────────────────────────────────────
+app.get('/hls/:id/status', (req, res) => {
+  const session = hlsManager.getSession(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Session not found or expired' });
+  res.json({ status: session.status, segmentCount: session.segmentCount, error: session.error });
+});
+
+// ─── /hls/:id/playlist.m3u8 ───────────────────────────────────────────────
+app.get('/hls/:id/playlist.m3u8', async (req, res) => {
+  const session = hlsManager.getSession(req.params.id);
+  if (!session) return res.status(404).send('Session not found or expired');
+
+  try {
+    const content = await fs.promises.readFile(session.playlistPath, 'utf8');
+
+    // Rewrite relative segment paths to absolute server URLs
+    const baseUrl = `/hls/${req.params.id}/`;
+    const rewritten = content.split('\n').map(line => {
+      if (line.startsWith('seg') || line === 'init.mp4') return baseUrl + line;
+      return line;
+    }).join('\n');
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(rewritten);
+  } catch {
+    res.status(404).send('Playlist not yet available');
+  }
+});
+
+// ─── /hls/:id/init.mp4 and /hls/:id/seg*.m4s ─────────────────────────────
+app.get('/hls/:id/:filename', (req, res) => {
+  const session = hlsManager.getSession(req.params.id);
+  if (!session) return res.status(404).send('Session not found');
+  const filename = req.params.filename;
+  if (!filename.endsWith('.m4s') && filename !== 'init.mp4') return res.status(400).send('Invalid file');
+  const filePath = path.join(session.dir, filename);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(filePath, err => {
+    if (err && !res.headersSent) res.status(404).send('Segment not found');
+  });
+});
+
+// ─── /hls/:id/stop ────────────────────────────────────────────────────────
+app.delete('/hls/:id/stop', async (req, res) => {
+  await hlsManager.deleteSession(req.params.id);
+  res.json({ ok: true });
+});
+
+// ─── /hls-proxy (existing, kept for backward compat) ─────────────────────
+app.get('/hls-proxy', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send('Missing url');
+  try {
+    const cookieStr = await cookieManager.parseCookiesForUrl(url);
+    const headers = { 'User-Agent': CONFIG.USER_AGENT };
+    try { headers['Referer'] = new URL(url).origin + '/'; } catch { }
+    if (cookieStr) headers['Cookie'] = cookieStr;
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) return res.status(response.status).send(`HLS proxy failed: ${response.statusText}`);
+    const ct = response.headers.get('content-type') || '';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    if (url.includes('.m3u8') || ct.includes('mpegurl')) {
+      const text = await response.text();
+      const baseUrl = new URL(url);
+      const rewritten = text.split('\n').map(line => {
+        if (!line.trim() || line.startsWith('#')) return line;
+        let targetUrl = line.trim();
+        if (!targetUrl.startsWith('http')) targetUrl = new URL(targetUrl, baseUrl).toString();
+        return `/hls-proxy?url=${encodeURIComponent(targetUrl)}`;
+      }).join('\n');
+      res.send(rewritten);
+    } else {
+      const cl = response.headers.get('content-length');
+      if (cl) res.setHeader('Content-Length', cl);
+      Readable.fromWeb(response.body).pipe(res);
+    }
+  } catch (err) {
+    if (!res.headersSent) res.status(500).send(err.message);
+  }
+});
+
+// ─── /audio — Audio-only download ─────────────────────────────────────────
+app.get('/audio', async (req, res) => {
+  req.setTimeout(0);
+  const { url, title = 'audio' } = req.query;
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+  console.log('🎵 /audio:', url);
+
+  try {
+    const info = await ytDlpInfo(url);
+    const bestAudio = (info.formats || [])
+      .filter(f => f.acodec !== 'none' && f.vcodec === 'none')
+      .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+
+    if (!bestAudio) throw new Error('No audio-only format found');
+
+    const filename = safeFilename(title) + '.m4a';
+    const headers = { 'User-Agent': CONFIG.USER_AGENT };
+    try { headers['Referer'] = new URL(url).origin + '/'; } catch { }
+    if (bestAudio.http_headers) Object.assign(headers, bestAudio.http_headers);
+
+    res.setHeader('Content-Type', 'audio/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const ffArgs = [
+      '-user_agent', CONFIG.USER_AGENT,
+      '-i', bestAudio.url,
+      '-vn', '-c:a', 'aac', '-b:a', '192k',
+      '-f', 'mp4', '-movflags', 'frag_keyframe+empty_moov', 'pipe:1'
+    ];
+
+    const ffmpeg = spawn(FFMPEG_BIN, ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    ffmpeg.stdout.pipe(res);
+    ffmpeg.stderr.on('data', d => process.stdout.write('[audio-ffmpeg] ' + d));
+    req.on('close', () => { if (!ffmpeg.killed) ffmpeg.kill('SIGKILL'); });
+
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── pipeStream ───────────────────────────────────────────────────────────
+function pipeStream(req, res, videoUrl, streamType, filename, playInline = false, audioUrl = null, httpHeaders = null, originalUrl = null, retryCount = 0) {
+  videoUrl = resolveBestQualityUrl(videoUrl);
+
+  const isAdaptive = streamType === 'm3u8' || streamType === 'mpd'
+    || videoUrl.includes('.m3u8') || videoUrl.includes('.mpd');
+
+  if (playInline && (streamType === 'm3u8' || videoUrl.includes('.m3u8')) && !audioUrl) {
+    console.log('🎞️ Redirecting HLS request to Native M3U8 Proxy...');
+    return res.redirect(`/m3u8-proxy?url=${encodeURIComponent(videoUrl)}&originalUrl=${encodeURIComponent(originalUrl || videoUrl)}`);
+  }
+
+  if (isAdaptive || audioUrl) {
+    console.log('🎞️ FFmpeg direct live browser stream...');
+
+    let origin = '';
+    try { origin = new URL(originalUrl || videoUrl).origin + '/'; } catch { }
+
+    let ffHeaders = origin ? `Referer: ${origin}\r\n` : '';
+    let userAgent = CONFIG.USER_AGENT;
+
+    if (httpHeaders) {
+      for (const [key, value] of Object.entries(httpHeaders)) {
+        if (key.toLowerCase() === 'user-agent') userAgent = value;
+        else ffHeaders += `${key}: ${value}\r\n`;
+      }
+    }
+
+    const ffArgs = [
+      '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
+      '-rw_timeout', '30000000',
+      '-user_agent', userAgent,
+      ...(ffHeaders ? ['-headers', ffHeaders] : []),
+      '-i', videoUrl,
+    ];
+
+    if (audioUrl) {
+      ffArgs.push('-user_agent', userAgent, ...(ffHeaders ? ['-headers', ffHeaders] : []), '-i', audioUrl);
+    }
+
+    ffArgs.push(
+      '-map', '0:v:0?',
+      ...(audioUrl ? ['-map', '1:a:0?'] : ['-map', '0:a:0?']),
+      '-c:v', 'copy',
+      '-c:a', audioUrl ? 'aac' : 'copy',
+      ...(audioUrl ? ['-b:a', '192k'] : []),
+      '-bsf:a', 'aac_adtstoasc',
+      '-movflags', 'frag_keyframe+empty_moov+faststart',
+      '-f', 'mp4', 'pipe:1'
+    );
+
+    const ffmpeg = spawn(FFMPEG_BIN, ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    console.log('🧠 FFmpeg PID:', ffmpeg.pid);
+
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Accept-Ranges', 'none');
+    res.setHeader('Content-Disposition', playInline ? `inline; filename="${filename}"` : `attachment; filename="${filename}"`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    let sentBytes = 0, streamStarted = false, streamDestroyed = false;
+
+    ffmpeg.stdout.on('data', chunk => {
+      if (!streamStarted) { streamStarted = true; console.log('🚀 Browser download icon should appear NOW'); }
+      sentBytes += chunk.length;
+      if (sentBytes % (5 * 1024 * 1024) < chunk.length) console.log(`📦 Streamed ${(sentBytes / 1024 / 1024).toFixed(1)} MB to browser`);
+      const ok = res.write(chunk);
+      if (!ok) ffmpeg.stdout.pause();
+    });
+
+    res.on('drain', () => { if (!ffmpeg.killed) ffmpeg.stdout.resume(); });
+
+    ffmpeg.stdout.on('end', () => {
+      console.log('🏁 FFmpeg stdout ended');
+      if (!streamDestroyed) try { res.end(); } catch { }
+    });
+
+    ffmpeg.stdout.on('error', err => {
+      if (streamStarted && !streamDestroyed) { streamDestroyed = true; res.destroy(err); }
+      else if (!streamStarted && !res.headersSent) res.status(500).json({ error: 'Stream pipe failed' });
+    });
+
+    ffmpeg.stderr.on('data', d => { process.stdout.write('[ffmpeg] ' + d); });
+
+    ffmpeg.on('close', code => {
+      console.log(`[ffmpeg] exit ${code}`);
+      if (code !== 0 && code !== null) {
+        if (streamStarted && !streamDestroyed) { streamDestroyed = true; res.destroy(new Error(`FFmpeg failed mid-stream with exit code ${code}`)); }
+        else if (!streamStarted && !res.headersSent) res.status(500).json({ error: 'FFmpeg conversion failed' });
+        return;
+      }
+      console.log('✅ Direct browser streaming finished');
+      if (!streamDestroyed) try { res.end(); } catch { }
+    });
+
+    ffmpeg.on('error', err => {
+      if (!res.headersSent) res.status(500).json({ error: 'FFmpeg spawn error' });
+    });
+
+    req.on('close', () => {
+      console.log('🛑 Browser closed live stream');
+      if (!ffmpeg.killed && ffmpeg.exitCode === null) ffmpeg.kill('SIGKILL');
+    });
+
+    return;
+  }
+
+  // Direct MP4/WebM — native fetch with 403 retry
+  console.log('📦 Direct stream using native Fetch...');
+
+  let origin = '';
+  try { origin = new URL(originalUrl || videoUrl).origin + '/'; } catch { }
+
+  const headers = {
+    'User-Agent': CONFIG.USER_AGENT,
+    ...(origin ? { 'Referer': origin, 'Origin': origin } : {}),
+    ...(httpHeaders || {}),
+  };
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === 'accept-encoding') delete headers[key];
+  }
+  if (req.headers.range) { headers['Range'] = req.headers.range; console.log('🔄 Forwarding Range request:', req.headers.range); }
+
+  // Inject cookies for adult sites
+  cookieManager.parseCookiesForUrl(videoUrl).then(cookieStr => {
+    if (cookieStr) headers['Cookie'] = cookieStr;
+  }).catch(() => { }).finally(() => {
+    fetch(videoUrl, { headers, redirect: 'follow', signal: req.signal }).then(async remote => {
+      // 403/410: signed URL may have expired — retry with fresh extraction
+      if ((remote.status === 403 || remote.status === 410) && retryCount < 2 && originalUrl) {
+        console.log(`🔄 HTTP ${remote.status} — signed URL expired, re-extracting (attempt ${retryCount + 1})...`);
+        try {
+          const freshInfo = await ytDlpInfo(originalUrl, { bypassCache: true });
+          const allFormats = freshInfo.formats || [];
+          const bestCombined = allFormats
+            .filter(f => f.vcodec !== 'none' && f.acodec !== 'none' && (f.ext === 'mp4' || f.ext === 'webm'))
+            .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+          if (bestCombined) {
+            return pipeStream(req, res, bestCombined.url, 'mp4', filename, playInline, null, bestCombined.http_headers || freshInfo.http_headers, originalUrl, retryCount + 1);
+          }
+        } catch (retryErr) {
+          console.warn('⚠️ Re-extraction failed:', retryErr.message);
+        }
+      }
+
+      if (!remote.ok && remote.status !== 206) {
+        if (!res.headersSent) res.status(502).json({ error: `CDN returned HTTP ${remote.status}` });
+        return;
+      }
+      let ct = remote.headers.get('content-type') || 'video/mp4';
+      if (ct === 'application/octet-stream' || ct === 'binary/octet-stream') ct = 'video/mp4';
+      if (ct.startsWith('image/')) { if (!res.headersSent) res.status(502).json({ error: 'CDN returned an image instead of video' }); return; }
+
+      res.status(remote.status);
+      res.setHeader('Content-Type', ct);
+      res.setHeader('Accept-Ranges', 'bytes');
+      const cr = remote.headers.get('content-range');
+      if (cr) res.setHeader('Content-Range', cr);
+      res.setHeader('Content-Disposition', playInline ? 'inline' : `attachment; filename="${filename}"`);
+      const cl = remote.headers.get('content-length');
+      if (cl) res.setHeader('Content-Length', cl);
+
+      const stream = Readable.fromWeb(remote.body);
+      stream.on('error', err => { if (res.headersSent) res.destroy(err); });
+      stream.pipe(res);
+    }).catch(err => {
+      if (err.name === 'AbortError') { console.log('🛑 Fetch aborted (client disconnected).'); return; }
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+    });
+  });
+}
+
+// ─── ytDlpDownload ────────────────────────────────────────────────────────
+function ytDlpDownload(url, req, res, playInline = false, title = 'video', originalUrl = null) {
+  return new Promise((resolve, reject) => {
+    const filename = safeFilename(title) + '.mp4';
+    const targetUrl = originalUrl || url;
+
+    const ytArgs = [
+      '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+      '--merge-output-format', 'mp4',
+      '--no-playlist', '--geo-bypass', '--newline',
+      '--no-part', '--no-warnings',
+      '--retries', '10', '--fragment-retries', '10',
+      '--user-agent', CONFIG.USER_AGENT,
+      '-o', '-',
+    ];
+
+    cookieManager.getCookieArgs(targetUrl).then(cookieArgs => {
+      ytArgs.push(...cookieArgs);
+      try { ytArgs.push('--add-header', `Referer:${new URL(targetUrl).origin}/`); } catch { }
+      ytArgs.push(url);
+      startDownloadProcess(ytArgs);
+    }).catch(err => reject(err));
+
+    function startDownloadProcess(finalArgs) {
+      const yt = spawn(YTDLP_BIN, finalArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+      console.log('⬇️ LIVE yt-dlp args:', finalArgs.join(' '));
+      console.log('🧠 yt-dlp PID:', yt.pid);
+
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', playInline ? 'inline' : `attachment; filename="${filename}"`);
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders?.();
+
+      let streamStarted = false, streamDestroyed = false, ffmpeg = null;
+
+      yt.stdout.once('data', chunk => {
+        streamStarted = true;
+        console.log('🚀 First live video bytes reached backend');
+
+        if (chunk[0] === 0x47) {
+          console.log('📼 Detected raw MPEG-TS stream. Spawning FFmpeg remuxer...');
+          ffmpeg = spawn(FFMPEG_BIN, [
+            '-i', 'pipe:0', '-map', '0:v?', '-map', '0:a?',
+            '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov+faststart',
+            '-f', 'mp4', 'pipe:1'
+          ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+          ffmpeg.stdout.pipe(res);
+          ffmpeg.stdout.on('end', () => { if (!streamDestroyed) resolve(); });
+          ffmpeg.stderr.on('data', d => {
+            const t = d.toString().replace(/[\r\n]+/g, ' ').trim();
+            if (t && !t.includes('frame=')) console.log('[ffmpeg-remux]', t);
+          });
+          ffmpeg.on('close', code => { console.log(`📴 FFmpeg remuxer exited with ${code}`); });
+          ffmpeg.stdin.write(chunk);
+          yt.stdout.pipe(ffmpeg.stdin);
+        } else {
+          console.log('📼 Detected clean MP4 stream. Sending directly...');
+          res.write(chunk);
+          yt.stdout.pipe(res);
+        }
+      });
+
+      yt.stdout.on('end', () => {
+        console.log('🏁 yt-dlp stdout finished');
+        if (!ffmpeg && !streamDestroyed) resolve();
+      });
+
+      yt.stderr.on('data', d => {
+        const t = d.toString().replace(/[\r\n]+/g, ' ').trim();
+        if (t) console.log('[yt-dlp]', t);
+      });
+
+      yt.on('close', code => {
+        console.log(`📴 yt-dlp exited with ${code}`);
+        if (code !== 0 && code !== null) {
+          if (streamStarted && !streamDestroyed) { streamDestroyed = true; res.destroy(new Error(`yt-dlp failed mid-stream exit ${code}`)); }
+          else if (!streamStarted && !res.headersSent) reject(new Error(`yt-dlp failed exit ${code}`));
+        }
+      });
+
+      yt.on('error', err => {
+        if (streamStarted && !streamDestroyed) { streamDestroyed = true; res.destroy(err); }
+        else if (!streamStarted && !res.headersSent) reject(err);
+      });
+
+      req.on('close', () => {
+        console.log('🛑 Browser closed live stream');
+        if (!yt.killed && yt.exitCode === null) yt.kill('SIGKILL');
+        if (ffmpeg && !ffmpeg.killed && ffmpeg.exitCode === null) ffmpeg.kill('SIGKILL');
+      });
+    }
+  });
+}
+
+// ─── /m3u8-proxy ────────────────────────────────────────────────────────────
+app.get('/m3u8-proxy', async (req, res) => {
+  const targetUrl = req.query.url;
+  const originalUrl = req.query.originalUrl || targetUrl;
+  if (!targetUrl) return res.status(400).send('Missing url');
+
+  try {
+    console.log(`▶️ /m3u8-proxy request: ${targetUrl.substring(0, 100)}...`);
+    let origin = '';
+    try { origin = new URL(originalUrl).origin + '/'; } catch { }
+
+    const headers = {
+      'User-Agent': CONFIG.USER_AGENT,
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'cross-site',
+      ...(origin ? { 'Referer': origin, 'Origin': origin } : {})
+    };
+
+    // Inject any custom headers yt-dlp found (like authorization/cookies)
+    const cached = infoCache.get(originalUrl);
+    if (cached && cached.info && cached.info.http_headers) {
+      for (const [k, v] of Object.entries(cached.info.http_headers)) {
+        headers[k] = v;
+      }
+    }
+
+    const cookieStr = await cookieManager.parseCookiesForUrl(targetUrl);
+    if (cookieStr) {
+      headers['Cookie'] = headers['Cookie'] ? `${headers['Cookie']}; ${cookieStr}` : cookieStr;
+    }
+
+    const remote = await fetch(targetUrl, { headers, redirect: 'follow' });
+    console.log(`▶️ /m3u8-proxy response: ${remote.status} ${remote.headers.get('content-type')}`);
+    if (!remote.ok) {
+      return res.status(remote.status).send('Proxy upstream error');
+    }
+
+    let ct = remote.headers.get('content-type') || '';
+    if (ct.includes('mpegurl') || ct.includes('x-mpegURL') || targetUrl.includes('.m3u8')) {
+      let text = await remote.text();
+      text = text.split('\n').map(line => {
+        const t = line.trim();
+        if (!t) return line;
+        if (t.startsWith('#')) {
+          if (t.includes('URI="')) {
+            return t.replace(/URI="([^"]+)"/, (match, uri) => {
+              try {
+                if (uri.startsWith('data:')) return match; // skip data URIs
+                const absolute = new URL(uri, targetUrl).href;
+                return `URI="/m3u8-proxy?url=${encodeURIComponent(absolute)}&originalUrl=${encodeURIComponent(originalUrl)}"`;
+              } catch { return match; }
+            });
+          }
+          return line;
+        }
+        try {
+          const absolute = new URL(t, targetUrl).href;
+          return `/m3u8-proxy?url=${encodeURIComponent(absolute)}&originalUrl=${encodeURIComponent(originalUrl)}`;
+        } catch { return line; }
+      }).join('\n');
+
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(text);
+    } else {
+      res.status(remote.status);
+      res.setHeader('Content-Type', ct);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      const cl = remote.headers.get('content-length');
+      if (cl) res.setHeader('Content-Length', cl);
+      const stream = Readable.fromWeb(remote.body);
+      stream.pipe(res);
+    }
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+// ─── /download ────────────────────────────────────────────────────────────
+app.get('/download', async (req, res) => {
+  req.setTimeout(0);
+  res.setTimeout(0);
+  if (req.socket) { req.socket.setTimeout(0); req.socket.setKeepAlive(true, 30000); }
+
+  const { url, originalUrl, stream: directStream, streamType, title = 'video', inline } = req.query;
+  const playInline = inline === 'true';
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+  console.log('📥 /download:', url);
+
+  if (directStream) {
+    let httpHeaders = null;
+    const cached = infoCache.get(originalUrl || url);
+    if (cached && cached.info && cached.info.http_headers) {
+      httpHeaders = cached.info.http_headers;
+    }
+
+    const filename = safeFilename(title) + '.mp4';
+    return await pipeStream(req, res, directStream, streamType, filename, playInline, null, httpHeaders, originalUrl || url);
+  }
+
+  if (playInline && !cookieManager.needsCookies(url)) {
+    try {
+      const info = await ytDlpInfo(url);
+      const allFormats = info.formats || [];
+      const httpHdrs = info.http_headers || {};
+
+      const bestCombined = allFormats
+        .filter(f => f.vcodec !== 'none' && f.acodec !== 'none' && (f.ext === 'mp4' || f.ext === 'webm') && f.url)
+        .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+
+      if (bestCombined) {
+        console.log(`🎬 Stream: Combined format ${bestCombined.format_id} (${bestCombined.height}p)`);
+        return await pipeStream(req, res, bestCombined.url, 'mp4', safeFilename(title) + '.mp4', playInline, null, bestCombined.http_headers || httpHdrs, originalUrl || url);
+      }
+
+      const bestVideo = allFormats.filter(f => f.vcodec !== 'none' && f.acodec === 'none' && f.url && (f.ext === 'mp4' || f.ext === 'webm')).sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+      const bestAudio = allFormats.filter(f => f.acodec !== 'none' && f.vcodec === 'none' && f.url).sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+
+      if (bestVideo && bestAudio) {
+        console.log(`🎬 Stream: FFmpeg mux — ${bestVideo.format_id} + ${bestAudio.format_id}`);
+        return await pipeStream(req, res, bestVideo.url, 'mp4', safeFilename(title) + '.mp4', playInline, bestAudio.url, bestVideo.http_headers || httpHdrs, originalUrl || url);
+      }
+    } catch (e) {
+      console.log('⚠️ Failed to resolve best inline format, falling back to yt-dlp...', e.message);
+    }
+  }
+
+  try {
+    await ytDlpDownload(url, req, res, playInline, title, originalUrl || url);
+  } catch (ytErr) {
+    console.log('⚠️ yt-dlp download failed, Puppeteer fallback...');
+    try {
+      const r = await extractWithPuppeteer(url);
+      await pipeStream(req, res, r.stream, r.streamType, safeFilename(r.title) + '.mp4', playInline, null, null, url);
+    } catch (ppErr) {
+      if (!res.headersSent) res.status(500).json({ error: ppErr.message });
+    }
+  }
+});
+
+// ─── /download-quality ────────────────────────────────────────────────────
+app.get('/download-quality', async (req, res) => {
+  req.setTimeout(0);
+  const { url, originalUrl, format_id, title = 'video', inline, track } = req.query;
+  const playInline = inline === 'true';
+  if (!url || !format_id) return res.status(400).json({ error: 'Missing url or format_id' });
+  console.log(`📥 /download-quality: ${url} format: ${format_id} track: ${track || 'both'}`);
+
+  try {
+    const info = await ytDlpInfo(url);
+    const selectedFormat = info.formats?.find(f => String(f.format_id) === String(format_id));
+    if (!selectedFormat) throw new Error('Format not found in info');
+
+    let videoUrl = selectedFormat.url;
+    let audioUrl = null;
+
+    if (track === 'video') {
+      audioUrl = null;
+    } else if (track === 'audio') {
+      const bestAudio = info.formats.filter(f => f.acodec !== 'none').sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+      if (!bestAudio) throw new Error('No audio track found');
+      videoUrl = bestAudio.url; // proxy audio track as main
+      audioUrl = null;
+    } else {
+      if (selectedFormat.acodec === 'none') {
+        const bestAudio = info.formats.filter(f => f.acodec !== 'none').sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+        if (bestAudio) audioUrl = bestAudio.url;
+      }
+    }
+
+    return await pipeStream(req, res, videoUrl, 'mp4', safeFilename(title) + '.mp4', playInline, audioUrl, selectedFormat.http_headers || info.http_headers, originalUrl || url);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── /formats ────────────────────────────────────────────────────────────
+app.get('/formats', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+  try {
+    const info = await ytDlpInfo(url);
+    const hasAudioTrack = (info.formats || []).some(f => f.acodec !== 'none');
+    const formats = (info.formats || [])
+      .filter(f => f.vcodec !== 'none' && (f.ext === 'mp4' || f.ext === 'webm'))
+      .map(f => ({
+        format_id: f.format_id, ext: f.ext, resolution: f.format,
+        height: f.height || 0, width: f.width || 0, fps: f.fps || 0,
+        vcodec: f.vcodec,
+        acodec: (f.acodec === 'none' && hasAudioTrack) ? 'aac' : f.acodec,
+        isSplit: f.acodec === 'none',
+        filesize: f.filesize || f.filesize_approx || 0,
+        tbr: f.tbr || 0,
+      }))
+      .sort((a, b) => (b.height || 0) - (a.height || 0));
+    return res.json({ title: info.title || 'Video', uploader: info.uploader || '', duration: info.duration || 0, thumbnail: info.thumbnail || '', formats });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── HTTP Server ──────────────────────────────────────────────────────────
+const server = app.listen(PORT, () => {
+  console.log(`🙂 Server → http://localhost:${PORT}`);
+  console.log('🟢 Express server listening successfully');
+  console.log('📡 Waiting for requests...');
+});
+
+server.on('close', () => { console.log('🔴 HTTP server closed'); });
+server.on('error', err => { console.error('🔥 HTTP server error:', err); });
+server.on('connection', socket => {
+  console.log('🔌 TCP connection from', socket.remoteAddress);
+  socket.on('close', () => { console.log('❌ TCP socket closed'); });
+});
+
+
+
+
