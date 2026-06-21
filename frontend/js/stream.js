@@ -288,13 +288,36 @@ async function _startHlsStream(streamVideo, statusEl, selectedFormat, preservedT
       console.log('✅ HLS manifest parsed, levels:', data.levels.length);
       statusEl.textContent = 'STREAMING (HLS)';
 
-      if (selectedFormat === 'best' && data.levels.length > 0) {
-        const maxLevel = data.levels.length - 1;
-        hls.currentLevel = _isLowEnd() ? 0 : maxLevel;
+      if (data.levels.length > 0) {
         const qEl = document.getElementById('stream-quality-select');
-        if (qEl) qEl.value = _isLowEnd() ? 0 : maxLevel;
-        const picked = data.levels[hls.currentLevel];
-        statusEl.textContent = `STREAMING (${picked?.height ?? '?'}p)`;
+        if (qEl) {
+          qEl.innerHTML = '<option value="-1">▲ AUTO QUALITY (ABR)</option>';
+          data.levels.forEach((level, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = `▶ ${level.height}p${level.bitrate ? ' ' + Math.round(level.bitrate / 1000) + 'k' : ''}`;
+            qEl.appendChild(opt);
+          });
+
+          qEl.onchange = ev => {
+            const lvl = parseInt(ev.target.value);
+            hls.currentLevel = lvl;
+            const picked = data.levels[lvl];
+            if (picked) statusEl.textContent = `STREAMING (${picked.height}p)`;
+            else statusEl.textContent = 'STREAMING (AUTO)';
+          };
+
+          if (selectedFormat === 'best') {
+            const maxLevel = data.levels.length - 1;
+            hls.currentLevel = _isLowEnd() ? 0 : maxLevel;
+            qEl.value = _isLowEnd() ? 0 : maxLevel;
+            const picked = data.levels[hls.currentLevel];
+            statusEl.textContent = `STREAMING (${picked?.height ?? '?'}p)`;
+          } else {
+            // Wait, if it wasn't best, let it do Auto by default
+            qEl.value = -1;
+          }
+        }
       }
 
       if (preservedTime > 0) streamVideo.currentTime = preservedTime;
