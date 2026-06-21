@@ -47,7 +47,7 @@ export function pipeStream(req, res, videoUrl, streamType, filename, playInline 
     }
 
     let ffmpegVideoUrl = (streamType === 'm3u8' || videoUrl.includes('.m3u8'))
-      ? `http://127.0.0.1:${CONFIG.PORT}/m3u8-proxy?url=${encodeURIComponent(videoUrl)}&originalUrl=${encodeURIComponent(originalUrl || videoUrl)}`
+      ? `http://127.0.0.1:${CONFIG.PORT}/m3u8-proxy.m3u8?url=${encodeURIComponent(videoUrl)}&originalUrl=${encodeURIComponent(originalUrl || videoUrl)}`
       : videoUrl;
 
     const ffArgs = [
@@ -60,7 +60,7 @@ export function pipeStream(req, res, videoUrl, streamType, filename, playInline 
 
     if (audioUrl) {
       let ffmpegAudioUrl = audioUrl.includes('.m3u8')
-        ? `http://127.0.0.1:${CONFIG.PORT}/m3u8-proxy?url=${encodeURIComponent(audioUrl)}&originalUrl=${encodeURIComponent(originalUrl || audioUrl)}`
+        ? `http://127.0.0.1:${CONFIG.PORT}/m3u8-proxy.m3u8?url=${encodeURIComponent(audioUrl)}&originalUrl=${encodeURIComponent(originalUrl || audioUrl)}`
         : audioUrl;
       ffArgs.push('-user_agent', userAgent, ...(ffHeaders ? ['-headers', ffHeaders] : []), '-i', ffmpegAudioUrl);
     }

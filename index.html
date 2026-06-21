@@ -376,7 +376,8 @@
     <div class="stream-body">
       <div class="stream-container">
         <div class="video-player" id="video-player-container">
-          <video id="stream-video" preload="auto" playsinline></video>
+          <video id="stream-video" crossorigin="anonymous" preload="auto" playsinline></video>
+          <audio id="stream-audio" crossorigin="anonymous" preload="auto" style="display:none;"></audio>
 
           <div class="buffering-indicator" id="buffering-indicator" style="display:none;">
             <div class="spinner"></div>

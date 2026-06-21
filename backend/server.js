@@ -12,7 +12,7 @@ import { hlsManager } from './lib/hlsSessionManager.js';
 import { ytDlpInfo, ytDlpDownload } from './lib/ytdlp.js';
 import { extractWithPuppeteer } from './lib/puppeteerExtractor.js';
 import { pipeStream, resolveBestQualityUrl } from './lib/streamPipe.js';
-import { safeFilename } from './lib/helpers.js';
+import { safeFilename, StripPNGTransform } from './lib/helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,12 +27,12 @@ app.use(express.json());
 
 // Boot logs
 console.log('XDown v5.0 Backend Initialized');
-console.log('🚀 Boot sequence started...');
-console.log('🖥️ Node version:', process.version);
+console.log(' Boot sequence started...');
+console.log(' Node version:', process.version);
 console.log('📂 Working directory:', process.cwd());
-console.log('🧠 PID:', process.pid);
-console.log('🧵 Platform:', process.platform, process.arch);
-console.log('📦 Binary targets:', { YTDLP_BIN, FFMPEG_BIN });
+console.log(' PID:', process.pid);
+console.log(' Platform:', process.platform, process.arch);
+console.log(' Binary targets:', { YTDLP_BIN, FFMPEG_BIN });
 
 process.on('exit', code => { console.log(`💀 Process exiting with code ${code}`); });
 process.on('SIGINT', () => { console.log('🛑 SIGINT received'); process.exit(0); });
@@ -404,7 +404,7 @@ app.get('/audio', async (req, res) => {
 });
 
 // ─── /m3u8-proxy ────────────────────────────────────────────────────────────
-app.get('/m3u8-proxy', async (req, res) => {
+app.get(['/m3u8-proxy', '/m3u8-proxy.m3u8', '/m3u8-proxy.ts'], async (req, res) => {
   const targetUrl = req.query.url;
   const originalUrl = req.query.originalUrl || targetUrl;
   if (!targetUrl) return res.status(400).send('Missing url');
@@ -458,7 +458,8 @@ app.get('/m3u8-proxy', async (req, res) => {
               try {
                 if (uri.startsWith('data:')) return match; // skip data URIs
                 const absolute = new URL(uri, targetUrl).href;
-                return `URI="/m3u8-proxy?url=${encodeURIComponent(absolute)}&originalUrl=${encodeURIComponent(originalUrl)}"`;
+                const ext = absolute.includes('.m3u8') ? '.m3u8' : '.ts';
+                return `URI="/m3u8-proxy${ext}?url=${encodeURIComponent(absolute)}&originalUrl=${encodeURIComponent(originalUrl)}"`;
               } catch { return match; }
             });
           }
@@ -466,7 +467,8 @@ app.get('/m3u8-proxy', async (req, res) => {
         }
         try {
           const absolute = new URL(t, targetUrl).href;
-          return `/m3u8-proxy?url=${encodeURIComponent(absolute)}&originalUrl=${encodeURIComponent(originalUrl)}`;
+          const ext = absolute.includes('.m3u8') ? '.m3u8' : '.ts';
+          return `/m3u8-proxy${ext}?url=${encodeURIComponent(absolute)}&originalUrl=${encodeURIComponent(originalUrl)}`;
         } catch { return line; }
       }).join('\n');
 
@@ -475,12 +477,16 @@ app.get('/m3u8-proxy', async (req, res) => {
       res.send(text);
     } else {
       res.status(remote.status);
-      res.setHeader('Content-Type', ct);
+
+      let newCt = ct;
+      if (ct.includes('image/') || targetUrl.includes('.image')) {
+        newCt = 'video/mp2t'; // force mpeg-ts for fake images
+      }
+      res.setHeader('Content-Type', newCt);
       res.setHeader('Access-Control-Allow-Origin', '*');
-      const cl = remote.headers.get('content-length');
-      if (cl) res.setHeader('Content-Length', cl);
+
       const stream = Readable.fromWeb(remote.body);
-      stream.pipe(res);
+      stream.pipe(new StripPNGTransform()).pipe(res);
     }
   } catch (err) {
     res.status(500).send(err.message);
@@ -630,8 +636,8 @@ app.get('/formats', async (req, res) => {
 // ─── HTTP Server ──────────────────────────────────────────────────────────
 const server = app.listen(PORT, () => {
   console.log(`🙂 Server → http://localhost:${PORT}`);
-  console.log('🟢 Express server listening successfully');
-  console.log('📡 Waiting for requests...');
+  console.log('=> Express server listening successfully');
+  console.log('=? Waiting for requests...');
 });
 
 server.on('close', () => { console.log('🔴 HTTP server closed'); });

@@ -1,6 +1,6 @@
-
 import { buildDlUrl, getServer } from './utils.js';
 import { videoInfo, hlsInstance, setHlsInstance, shakaPlayer, setShakaPlayer } from './state.js';
+import { initAudioEQ, setEQVolume, setEQBass, resumeAudioContext } from './audio.js';
 
 export let playerState = null;
 export function initVideoPlayer() {
@@ -45,9 +45,14 @@ export function initVideoPlayer() {
                     </svg>
                   </button>
                   <div class="volume-slider-container">
-                    <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="100">
+                    <input type="range" id="volume-slider" class="volume-slider" min="0" max="300" value="100">
                     <span id="volume-value" class="volume-value">100%</span>
                   </div>
+                  <button class="control-btn" id="bass-btn" title="Bass Boost (B)" style="margin-left: 8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                  </button>
                 </div>
 
                 <div class="time-display">
@@ -100,6 +105,7 @@ export function initVideoPlayer() {
         playing: false,
         volume: 100,
         isMuted: false,
+        bassBoost: false,
         isDraggingProgress: false,
         isFullscreen: false,
         isTheaterMode: false,
@@ -119,6 +125,7 @@ export function initVideoPlayer() {
       const volumeBtn = document.getElementById('volume-btn');
       const volumeSlider = document.getElementById('volume-slider');
       const volumeValue = document.getElementById('volume-value');
+      const bassBtn = document.getElementById('bass-btn');
       const speedSelect = document.getElementById('speed-select');
       const fullscreenBtn = document.getElementById('fullscreen-btn');
       const theaterBtn = document.getElementById('theater-btn');
@@ -128,6 +135,11 @@ export function initVideoPlayer() {
       const iconPause = playBtn.querySelector('.icon-pause');
       const iconFullscreen = fullscreenBtn.querySelector('.icon-fullscreen');
       const iconFullscreenExit = fullscreenBtn.querySelector('.icon-fullscreen-exit');
+
+      const sa = document.getElementById('stream-audio');
+
+      // Web Audio API Setup
+      initAudioEQ(video, sa);
 
       // Helper Functions
       function formatTime(seconds) {
@@ -160,6 +172,7 @@ export function initVideoPlayer() {
       }
 
       function togglePlayPause() {
+        resumeAudioContext();
         if (video.paused) {
           video.play().catch(err => {
             console.error('Play failed:', err);
@@ -170,16 +183,22 @@ export function initVideoPlayer() {
       }
 
       function updateVolume(newVolume) {
-        playerState.volume = Math.max(0, Math.min(100, newVolume));
-        video.volume = playerState.volume / 100;
+        playerState.volume = Math.max(0, Math.min(300, newVolume));
+        
+        // Native volume handles 0-100%
+        video.volume = Math.min(playerState.volume, 100) / 100;
+        
+        // Web Audio Gain handles 100% - 300%
+        setEQVolume(playerState.volume);
+
         const sa = document.getElementById('stream-audio');
         if (sa) sa.volume = video.volume;
 
         volumeSlider.value = playerState.volume;
         volumeValue.textContent = Math.round(playerState.volume) + '%';
 
-        // Update slider gradient
-        volumeSlider.style.setProperty('--volume-percent', playerState.volume + '%');
+        // Update slider gradient based on 300% scale
+        volumeSlider.style.setProperty('--volume-percent', (playerState.volume / 3) + '%');
 
         playerState.isMuted = playerState.volume === 0;
         video.muted = playerState.isMuted;
@@ -194,9 +213,22 @@ export function initVideoPlayer() {
 
       function toggleMute() {
         if (playerState.isMuted) {
-          updateVolume(playerState.volume || 80);
+          updateVolume(playerState.volume || 100);
         } else {
           updateVolume(0);
+        }
+      }
+
+      function toggleBassBoost() {
+        resumeAudioContext();
+        playerState.bassBoost = !playerState.bassBoost;
+        setEQBass(playerState.bassBoost);
+        if (playerState.bassBoost) {
+          bassBtn.classList.add('active');
+          bassBtn.style.color = '#39ff14';
+        } else {
+          bassBtn.classList.remove('active');
+          bassBtn.style.color = '';
         }
       }
 
@@ -353,6 +385,7 @@ export function initVideoPlayer() {
       volumeSlider.addEventListener('input', (e) => {
         updateVolume(parseFloat(e.target.value));
       });
+      bassBtn.addEventListener('click', toggleBassBoost);
 
       // Speed control
       speedSelect.addEventListener('change', (e) => {
@@ -435,6 +468,12 @@ export function initVideoPlayer() {
           case 'm':
             e.preventDefault();
             toggleMute();
+            showControls();
+            break;
+
+          case 'b':
+            e.preventDefault();
+            toggleBassBoost();
             showControls();
             break;
 
