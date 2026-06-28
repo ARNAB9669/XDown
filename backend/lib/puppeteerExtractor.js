@@ -43,7 +43,7 @@ export async function extractWithPuppeteer(pageUrl) {
     // Network-level intercept — catches URLs before they hit the DOM
     page.on('request', req => {
       const t = req.resourceType();
-      if (t === 'image' || t === 'font' || t === 'stylesheet') { req.abort(); return; }
+      if (t === 'image' || t === 'font') { req.abort(); return; }
       req.continue();
     });
 
@@ -64,6 +64,11 @@ export async function extractWithPuppeteer(pageUrl) {
     // Event-driven wait: resolve as soon as a high-confidence URL is found
     const waitForVideoUrl = new Promise(resolve => {
       const intervalId = setInterval(() => {
+        // Try to aggressively skip ads while waiting
+        page.evaluate(() => {
+          document.querySelectorAll('[class*="skip"], [id*="skip"], .skip-ad').forEach(b => { try { b.click(); } catch { } });
+        }).catch(() => {});
+
         const bestSoFar = capturedUrls.sort((a, b) => b.score - a.score)[0];
         if (bestSoFar && bestSoFar.score > 100) { clearInterval(intervalId); resolve(); }
       }, 300);
@@ -71,10 +76,11 @@ export async function extractWithPuppeteer(pageUrl) {
       setTimeout(() => { clearInterval(intervalId); resolve(); }, CONFIG.PUPPETEER.WAIT_TIMEOUT);
     });
 
-    // Try play button
+    // Try play button without clicking playlist links
     try {
+      await page.mouse.click(683, 384); // Click center of screen (1366x768 viewport)
       await page.evaluate(() => {
-        document.querySelectorAll('button, .play-button, [class*=play]').forEach(b => { try { b.click(); } catch { } });
+        document.querySelectorAll('.mgp_videoWrapper, .mhp1138_playButton, .play-video').forEach(b => { try { b.click(); } catch { } });
         document.querySelectorAll('video').forEach(v => { try { v.play(); } catch { } });
       });
     } catch { }

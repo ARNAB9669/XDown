@@ -65,21 +65,42 @@ export function pipeStream(req, res, videoUrl, streamType, filename, playInline 
       ffArgs.push('-user_agent', userAgent, ...(ffHeaders ? ['-headers', ffHeaders] : []), '-i', ffmpegAudioUrl);
     }
 
+    const ext = filename.split('.').pop() || 'mp4';
+    const isWebmInput = streamType === 'webm';
+
     ffArgs.push(
       '-map', '0:v:0?',
-      ...(audioUrl ? ['-map', '1:a:0?'] : ['-map', '0:a:0?']),
-      '-c:v', 'copy',
-      '-c:a', audioUrl ? 'aac' : 'copy',
-      ...(audioUrl ? ['-b:a', '192k'] : []),
-      '-bsf:a', 'aac_adtstoasc',
-      '-movflags', 'frag_keyframe+empty_moov+faststart',
-      '-f', 'mp4', 'pipe:1'
+      ...(audioUrl ? ['-map', '1:a:0?'] : ['-map', '0:a:0?'])
     );
+
+    if (ext === 'webm') {
+      ffArgs.push(
+        '-c:v', 'copy',
+        '-c:a', audioUrl ? 'libopus' : 'copy',
+        ...(audioUrl ? ['-b:a', '128k'] : []),
+        '-f', 'webm', 'pipe:1'
+      );
+    } else {
+      if (isWebmInput) {
+        console.log('🔄 Transcoding VP9/VP8 to H.264 for MP4 compatibility...');
+        ffArgs.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23');
+      } else {
+        ffArgs.push('-c:v', 'copy');
+      }
+
+      ffArgs.push(
+        '-c:a', audioUrl ? 'aac' : 'copy',
+        ...(audioUrl ? ['-b:a', '192k'] : []),
+        '-bsf:a', 'aac_adtstoasc',
+        '-movflags', 'frag_keyframe+empty_moov+faststart',
+        '-f', 'mp4', 'pipe:1'
+      );
+    }
 
     const ffmpeg = spawn(FFMPEG_BIN, ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
     console.log('🧠 FFmpeg PID:', ffmpeg.pid);
 
-    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Type', ext === 'webm' ? 'video/webm' : 'video/mp4');
     res.setHeader('Accept-Ranges', 'none');
     res.setHeader('Content-Disposition', playInline ? `inline; filename="${filename}"` : `attachment; filename="${filename}"`);
     res.setHeader('Transfer-Encoding', 'chunked');

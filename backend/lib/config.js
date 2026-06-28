@@ -32,7 +32,7 @@ export const CONFIG = {
     MAX_CRASH_RESTARTS: 3,
     CRASH_WINDOW: 60 * 1000,
     NAV_TIMEOUT: 15000,
-    WAIT_TIMEOUT: 12000,
+    WAIT_TIMEOUT: 30000,
   },
 
   DOWNLOAD: {
@@ -60,5 +60,6 @@ export const CONFIG = {
     'adspyglass.com', 'doubleverify.com', 'adsafeprotected.com',
     'moatads.com', 'pornvertiser.com', 'sexad.net', 'porniframe.com',
     'redmoon-media.com', 'trafficstars.com', 'ero-advertising.com',
+    'etahub.com'
   ],
 };

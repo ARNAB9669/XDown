@@ -11,7 +11,7 @@ export function scoreUrl(url, pageOrigin) {
     let score = 0;
 
     if (CONFIG.AD_DOMAINS.some(d => u.hostname.includes(d))) return -Infinity;
-    if (/\/(ads?|preroll|vast|midroll|banner|tracking)\//i.test(u.pathname)) return -Infinity;
+    if (/\/(ads?|preroll|vast|midroll|banner|tracking|events?|metrics|analytics|log)\//i.test(u.pathname)) return -Infinity;
     if (/blank\.mp4|preview|thumb|icon|logo/i.test(u.pathname)) return -Infinity;
 
     try {

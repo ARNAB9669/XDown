@@ -15,13 +15,44 @@ export class CookieManager {
 
   needsCookies(url) {
     try {
-      const host = new URL(url).hostname.replace('www.', '');
-      return CONFIG.COOKIE_DOMAINS.some(d => host.includes(d.replace('www.', '')));
+      const host = new URL(url).hostname;
+      const baseName = host.split('.').length > 1 ? host.split('.')[host.split('.').length - 2] : host;
+      return CONFIG.COOKIE_DOMAINS.some(d => d.includes(baseName));
     } catch { return false; }
   }
 
   async getCookieArgs(url) {
     if (!this.needsCookies(url)) return [];
+
+    const customCookieFile = path.join(process.cwd(), 'pornhub_cookies.txt');
+    if (fs.existsSync(customCookieFile)) {
+      try {
+        const content = fs.readFileSync(customCookieFile, 'utf8');
+        if (content.trim().startsWith('[')) {
+          const cookies = JSON.parse(content);
+          let netscape = '# Netscape HTTP Cookie File\\n# http://curl.haxx.se/rfc/cookie_spec.html\\n\\n';
+          for (const c of cookies) {
+            const domain = c.domain || '';
+            const includeSub = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+            const pathVal = c.path || '/';
+            const secure = c.secure ? 'TRUE' : 'FALSE';
+            const expires = c.expirationDate ? Math.floor(c.expirationDate) : 0;
+            netscape += `${domain}\t${includeSub}\t${pathVal}\t${secure}\t${expires}\t${c.name}\t${c.value}\n`;
+          }
+          fs.writeFileSync(this.filePath, netscape);
+          this.cache = this.filePath;
+          console.log('🍪 Converted JSON cookies to Netscape format!');
+          return ['--cookies', this.filePath];
+        } else if (content.trim().length > 0) {
+          console.log('🍪 Using manual cookies from pornhub_cookies.txt');
+          this.cache = customCookieFile;
+          return ['--cookies', customCookieFile];
+        }
+      } catch (e) {
+        console.error('⚠️ Failed to parse pornhub_cookies.txt:', e.message);
+      }
+    }
+
     if (Date.now() < this.cacheExpiry && this.cache) return ['--cookies', this.cache];
 
     if (this.busy) {
@@ -52,7 +83,7 @@ export class CookieManager {
       const proc = spawn(YTDLP_BIN, [
         '--cookies-from-browser', browser,
         '--cookies', this.filePath,
-        '--skip-download', 'about:blank'
+        '--skip-download', 'https://www.google.com/robots.txt'
       ]);
       let errOut = '';
       proc.stderr.on('data', d => { errOut += d; });
@@ -74,10 +105,12 @@ export class CookieManager {
     try {
       const content = await fs.promises.readFile(this.cache, 'utf8');
       const targetHost = new URL(url).hostname;
+      const baseName = targetHost.split('.').length > 1 ? targetHost.split('.')[targetHost.split('.').length - 2] : targetHost;
+
       return content.split('\n')
         .filter(l => l && !l.startsWith('#'))
         .map(l => l.split('\t'))
-        .filter(p => p.length >= 7 && targetHost.includes(p[0].replace(/^\./, '')))
+        .filter(p => p.length >= 7 && p[0].includes(baseName))
         .map(p => `${p[5]}=${p[6].trim()}`)
         .join('; ');
     } catch { return ''; }

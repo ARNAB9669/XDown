@@ -4,6 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
+import os from 'os';
+import { spawn } from 'child_process';
 
 import { CONFIG, YTDLP_BIN, FFMPEG_BIN } from './lib/config.js';
 import { infoCache } from './lib/lruCache.js';
@@ -534,18 +536,18 @@ app.get('/download', async (req, res) => {
       const bestVideo = allFormats.filter(f => f.vcodec !== 'none' && f.acodec === 'none' && f.url && (f.ext === 'mp4' || f.ext === 'webm')).sort((a, b) => (b.height || 0) - (a.height || 0))[0];
 
       if (bestVideo) {
-        const isWebm = bestVideo.ext === 'webm' || (bestVideo.vcodec && (bestVideo.vcodec.includes('vp9') || bestVideo.vcodec.includes('vp8') || bestVideo.vcodec.includes('av01')));
-        const ext = isWebm ? 'webm' : 'mp4';
+        const isWebm = bestVideo.ext === 'webm' || (bestVideo.vcodec && (bestVideo.vcodec.includes('vp9') || bestVideo.vcodec.includes('vp09') || bestVideo.vcodec.includes('vp8') || bestVideo.vcodec.includes('av01')));
+        const streamExt = isWebm ? 'webm' : 'mp4';
 
         const compatibleAudios = allFormats.filter(f => {
           if (f.acodec === 'none' || !f.url) return false;
-          if (isWebm) return f.ext === 'webm' || f.acodec.includes('opus') || f.acodec.includes('vorbis');
-          return f.ext === 'm4a' || f.ext === 'mp4' || f.acodec.includes('aac') || f.acodec.includes('mp4a');
+          if (isWebm) return f.ext === 'webm' || (f.acodec && (f.acodec.includes('opus') || f.acodec.includes('vorbis')));
+          return f.ext === 'm4a' || f.ext === 'mp4' || (f.acodec && (f.acodec.includes('aac') || f.acodec.includes('mp4a')));
         });
         const bestAudio = (compatibleAudios.length > 0 ? compatibleAudios : allFormats.filter(f => f.acodec !== 'none')).sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
 
         console.log(`🎬 Stream: FFmpeg mux — ${bestVideo.format_id} + ${bestAudio ? bestAudio.format_id : 'none'}`);
-        return await pipeStream(req, res, bestVideo.url, ext, safeFilename(title) + '.' + ext, playInline, bestAudio?.url, bestVideo.http_headers || httpHdrs, originalUrl || url);
+        return await pipeStream(req, res, bestVideo.url, streamExt, safeFilename(title) + '.mp4', playInline, bestAudio?.url, bestVideo.http_headers || httpHdrs, originalUrl || url);
       }
     } catch (e) {
       console.log('⚠️ Failed to resolve best inline format, falling back to yt-dlp...', e.message);
@@ -581,8 +583,8 @@ app.get('/download-quality', async (req, res) => {
     let videoUrl = selectedFormat.url;
     let audioUrl = null;
 
-    const isWebm = selectedFormat.ext === 'webm' || (selectedFormat.vcodec && (selectedFormat.vcodec.includes('vp9') || selectedFormat.vcodec.includes('vp8') || selectedFormat.vcodec.includes('av01')));
-    const outputExt = isWebm ? 'webm' : 'mp4';
+    const isWebm = selectedFormat.ext === 'webm' || (selectedFormat.vcodec && (selectedFormat.vcodec.includes('vp9') || selectedFormat.vcodec.includes('vp09') || selectedFormat.vcodec.includes('vp8') || selectedFormat.vcodec.includes('av01')));
+    const inputType = isWebm ? 'webm' : 'mp4';
 
     if (track === 'video') {
       audioUrl = null;
@@ -595,16 +597,17 @@ app.get('/download-quality', async (req, res) => {
       if (selectedFormat.acodec === 'none') {
         const compatibleAudios = info.formats.filter(f => {
           if (f.acodec === 'none' || !f.url) return false;
-          if (isWebm) return f.ext === 'webm' || f.acodec.includes('opus') || f.acodec.includes('vorbis');
-          return f.ext === 'm4a' || f.ext === 'mp4' || f.acodec.includes('aac') || f.acodec.includes('mp4a');
+          if (isWebm) return f.ext === 'webm' || (f.acodec && (f.acodec.includes('opus') || f.acodec.includes('vorbis')));
+          return f.ext === 'm4a' || f.ext === 'mp4' || (f.acodec && (f.acodec.includes('aac') || f.acodec.includes('mp4a')));
         });
         const bestAudio = (compatibleAudios.length > 0 ? compatibleAudios : info.formats.filter(f => f.acodec !== 'none')).sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
         if (bestAudio) audioUrl = bestAudio.url;
       }
     }
 
-    return await pipeStream(req, res, videoUrl, outputExt, safeFilename(title) + '.' + outputExt, playInline, audioUrl, selectedFormat.http_headers || info.http_headers, originalUrl || url);
+    return await pipeStream(req, res, videoUrl, inputType, safeFilename(title) + '.mp4', playInline, audioUrl, selectedFormat.http_headers || info.http_headers, originalUrl || url);
   } catch (err) {
+    console.error('🚨 /download-quality Error:', err);
     if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
@@ -631,6 +634,55 @@ app.get('/formats', async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ─── /api/fix-mp4 (Upload & Fix MP4 Header) ─────────────────────────────────
+app.post('/api/fix-mp4', async (req, res) => {
+  req.setTimeout(0);
+  const id = Date.now() + Math.random().toString(36).substring(2, 7);
+  const inPath = path.join(os.tmpdir(), `xstream_in_${id}.mp4`);
+  const outPath = path.join(os.tmpdir(), `xstream_out_${id}.mp4`);
+  const originalName = req.query.filename || 'FixedVideo.mp4';
+
+  console.log(`🛠️ /api/fix-mp4: Receiving file to ${inPath}`);
+
+  const writeStream = fs.createWriteStream(inPath);
+  req.pipe(writeStream);
+
+  req.on('error', err => {
+    console.error('Upload error:', err);
+    try { fs.unlinkSync(inPath); } catch {}
+    if (!res.headersSent) res.status(500).json({ error: 'Upload failed' });
+  });
+
+  writeStream.on('finish', () => {
+    console.log(`🛠️ Upload complete. Spawning FFmpeg to fix MP4 header and enforce AAC...`);
+    const ffArgs = ['-i', inPath, '-c:v', 'copy', '-c:a', 'aac', outPath];
+    const ffmpeg = spawn(FFMPEG_BIN, ffArgs);
+
+    ffmpeg.on('close', code => {
+      console.log(`🛠️ FFmpeg finished with code ${code}`);
+      if (code !== 0) {
+        try { fs.unlinkSync(inPath); fs.unlinkSync(outPath); } catch {}
+        if (!res.headersSent) return res.status(500).json({ error: 'FFmpeg fix failed' });
+      }
+
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename(originalName.replace('.mp4', ''))}_Fixed.mp4"`);
+      
+      const readStream = fs.createReadStream(outPath);
+      readStream.pipe(res);
+
+      readStream.on('end', () => {
+        console.log(`🛠️ Fixed file sent to browser. Cleaning up temp files...`);
+        try { fs.unlinkSync(inPath); fs.unlinkSync(outPath); } catch {}
+      });
+
+      req.on('close', () => {
+        try { fs.unlinkSync(inPath); fs.unlinkSync(outPath); } catch {}
+      });
+    });
+  });
 });
 
 // ─── HTTP Server ──────────────────────────────────────────────────────────

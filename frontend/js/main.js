@@ -8,6 +8,7 @@ import { startWarpDownload, closeWarp } from './download.js';
 import { startStream, closeStream } from './stream.js';
 import { setServerConfig } from './state.js';
 import { reset } from './reset.js';
+import { initFixer } from './fixer.js';
 
 window.fetchInfo = fetchInfo;
 window.startWarpDownload = startWarpDownload;
@@ -44,4 +45,5 @@ document.addEventListener('DOMContentLoaded', () => {
   if (urlInput) restoreSession();
   runBoot();
   initVideoPlayer();
+  initFixer();
 });
